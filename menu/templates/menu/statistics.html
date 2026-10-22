@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Статистика – Меню на неделю
+{% endblock %}
+
+{% block content %}
+    <h1>Статистика</h1>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <h2 class="h5">Записи меню</h2>
+                    <p class="mb-1">Всего: {{ counts.total_entries }}</p>
+                    <p class="mb-1">Активных: {{ counts.active_entries }}</p>
+                    <p class="mb-0">Отменённых: {{ counts.cancelled_entries }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <h2 class="h5">Калорийность блюд</h2>
+                    <p class="mb-1">Блюд в каталоге: {{ calories_range.dishes_count }}</p>
+                    <p class="mb-1">
+                        От {{ calories_range.min_calories }}
+                        до {{ calories_range.max_calories }} ккал
+                    </p>
+                    <p class="mb-0">В среднем: {{ calories_range.avg_calories|floatformat:1 }} ккал</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="h4">Калорийность по дням</h2>
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Дата</th><th>Пользователь</th><th>Блюд</th>
+                <th>Ккал</th><th>Лимит</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in calories_by_day %}
+                <tr {% if row.day_calories > row.daily_limit %}class="table-danger"{% endif %}>
+                    <td>{{ row.menu_date }}</td>
+                    <td>{{ row.user_name }}</td>
+                    <td>{{ row.dishes_count }}</td>
+                    <td>{{ row.day_calories }}</td>
+                    <td>{{ row.daily_limit }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="5">Данные отсутствуют.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2 class="h4">Дни с превышением лимита</h2>
+    <ul class="list-group mb-4">
+        {% for row in over_limit %}
+            <li class="list-group-item">
+                {{ row.user_name }}, {{ row.menu_date }}:
+                {{ row.day_calories }} ккал при лимите {{ row.daily_limit }}
+                <span class="badge bg-danger">+{{ row.excess }}</span>
+            </li>
+        {% empty %}
+            <li class="list-group-item">Превышений нет.</li>
+        {% endfor %}
+    </ul>
+
+    <h2 class="h4">Популярность блюд</h2>
+    <ul class="list-group mb-4">
+        {% for row in popularity %}
+            <li class="list-group-item d-flex justify-content-between">
+                {{ row.dish_name }}
+                <span>{{ row.times_planned }}</span>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <h2 class="h4">Часто планируемые блюда</h2>
+    <form method="get" class="row g-2 align-items-end mb-2">
+        <div class="col-auto">
+            <label for="min_count" class="form-label">Встречается больше, раз</label>
+            <input
+                type="number"
+                min="0"
+                id="min_count"
+                name="min_count"
+                class="form-control"
+                value="{{ threshold }}"
+            >
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Показать</button>
+        </div>
+    </form>
+    <ul class="list-group mb-4">
+        {% for row in frequent %}
+            <li class="list-group-item">
+                {{ row.dish_name }} — {{ row.times_planned }}
+            </li>
+        {% empty %}
+            <li class="list-group-item">Таких блюд нет.</li>
+        {% endfor %}
+    </ul>
+
+    <h2 class="h4">Блюда по типам</h2>
+    <ul class="list-group">
+        {% for row in dish_types %}
+            <li class="list-group-item">
+                {{ row.dish_type|capfirst }}: блюд — {{ row.dishes_count }},
+                в среднем {{ row.avg_calories|floatformat:0 }} ккал
+            </li>
+        {% endfor %}
+    </ul>
+{% endblock %}

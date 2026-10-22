@@ -7,8 +7,40 @@
 {% block content %}
     <h1>Блюда</h1>
 
+    <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-auto">
+            <label for="max_calories" class="form-label">
+                Не больше, ккал
+            </label>
+            <input
+                type="number"
+                min="1"
+                id="max_calories"
+                name="max_calories"
+                class="form-control"
+                value="{{ max_calories|default_if_none:'' }}"
+            >
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Подобрать</button>
+            {% if max_calories %}
+                <a href="{% url 'dishes:list' %}" class="btn btn-link">
+                    Сбросить
+                </a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if bad_input %}
+        <p class="text-danger">Лимит должен быть положительным числом.</p>
+    {% endif %}
+
     <p>
-        Всего блюд: {{ dishes|length }}
+        {% if max_calories %}
+            Блюд не больше {{ max_calories }} ккал: {{ dishes|length }}
+        {% else %}
+            Всего блюд: {{ dishes|length }}
+        {% endif %}
     </p>
 
     {% for dish in dishes %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Меню на день – Меню на неделю
+{% endblock %}
+
+{% block content %}
+    <h1>Меню на день</h1>
+
+    <form method="get" class="row g-2 align-items-end mb-4">
+        <div class="col-auto">
+            <label for="user" class="form-label">Пользователь</label>
+            <select id="user" name="user" class="form-select">
+                {% for user in users %}
+                    <option
+                        value="{{ user.id }}"
+                        {% if selected_user and selected_user.id == user.id %}selected{% endif %}
+                    >
+                        {{ user.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <label for="date" class="form-label">Дата</label>
+            <input
+                type="date"
+                id="date"
+                name="date"
+                class="form-control"
+                value="{{ date_value }}"
+            >
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Показать</button>
+        </div>
+    </form>
+
+    {% if error %}
+        <p class="text-danger">{{ error }}</p>
+    {% endif %}
+
+    {% if searched %}
+        <h2 class="h4">
+            {{ selected_user.name }}, {{ date_value }}
+        </h2>
+
+        <p>
+            Калорийность дня: <strong>{{ day_calories }}</strong> ккал
+            из {{ selected_user.daily_limit }}.
+            {% if left_calories < 0 %}
+                <span class="badge bg-danger">
+                    превышение на {{ excess_calories }} ккал
+                </span>
+            {% else %}
+                <span class="badge bg-success">
+                    осталось {{ left_calories }} ккал
+                </span>
+            {% endif %}
+        </p>
+
+        <ul class="list-group mb-4">
+            {% for entry in entries %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <a href="{% url 'menu:detail' entry.id %}">
+                        {{ entry.dish_name }} ({{ entry.dish_type }})
+                    </a>
+                    <span>{{ entry.calories }} ккал</span>
+                </li>
+            {% empty %}
+                <li class="list-group-item">
+                    На этот день блюд в меню нет.
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h3 class="h5">Можно добавить</h3>
+        {% for dish in free_dishes %}
+            {% include "dishes/includes/dish_card.html" %}
+        {% empty %}
+            <p>Все блюда уже в меню на этот день.</p>
+        {% endfor %}
+    {% endif %}
+{% endblock %}

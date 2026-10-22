@@ -8,7 +8,9 @@
     <h1>Меню</h1>
 
     <p>
-        Всего записей: {{ entries|length }}
+        Активных записей: {{ counts.active_entries }},
+        отменённых: {{ counts.cancelled_entries }}.
+        <a href="{% url 'menu:day' %}">Посмотреть меню на день</a>
     </p>
 
     <ul class="list-group">
@@ -16,13 +18,14 @@
             <li class="list-group-item d-flex justify-content-between">
                 <a href="{% url 'menu:detail' entry.id %}">
                     №{{ entry.id }}: {{ entry.menu_date }} –
-                    {{ entry.dish.name }} ({{ entry.user.name }})
+                    {{ entry.dish_name }}, {{ entry.calories }} ккал
+                    ({{ entry.user_name }})
                 </a>
                 {% include "menu/includes/menu_status.html" %}
             </li>
         {% empty %}
             <li class="list-group-item">
-                Записей меню не найдено.
+                Активных записей меню нет.
             </li>
         {% endfor %}
     </ul>

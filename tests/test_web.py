@@ -9,6 +9,7 @@ def client():
 
 @pytest.mark.parametrize("url", [
     "/", "/dishes/", "/dishes/1/", "/menu/", "/menu/1/",
+    "/menu/day/", "/menu/statistics/",
 ])
 def test_pages_open(client, url):
     response = client.get(url)
@@ -22,10 +23,11 @@ def test_list_shows_domain_data(client):
     assert "320 ккал" in html
 
 
-def test_menu_shows_statuses(client):
-    html = client.get("/menu/").content.decode().lower()
-    assert "отменено" in html
-    assert "активно" in html
+def test_menu_shows_only_active_entries(client):
+    html = client.get("/menu/").content.decode()
+    assert "Активных записей: 16" in html
+    assert "отменённых: 1" in html
+    assert 'href="/menu/9/"' not in html
 
 
 def test_detail_pages_show_related_objects(client):
@@ -66,13 +68,61 @@ def test_dish_list_uses_filters_and_cards(client):
     html = response.content.decode()
     assert "Всего блюд: 9" in html
     assert html.count("dish-card") == 9
-    assert response.context["dishes"][0].name == "Овсяная каша с ягодами"
+    first = response.context["dishes"][0]
+    assert first["name"] == "Греческий салат"
 
 
 def test_named_urls_in_navigation(client):
     html = client.get("/menu/").content.decode()
     assert 'href="/dishes/"' in html
     assert 'href="/menu/1/"' in html
+
+
+def test_dish_filter_is_parameterized(client):
+    html = client.get("/dishes/?max_calories=250").content.decode()
+    assert "Блюд не больше 250 ккал: 3" in html
+    assert "Овсяная каша" not in html
+    html = client.get("/dishes/?max_calories=abc").content.decode()
+    assert "положительным числом" in html
+
+
+def test_dish_detail_counts_plans(client):
+    html = client.get("/dishes/5/").content.decode()
+    assert "Гречка с индейкой" in html
+    assert '<span class="badge bg-success">3</span>' in html
+
+
+def test_day_menu_page(client):
+    response = client.get("/menu/day/")
+    assert response.status_code == 200
+    assert "Пользователь" in response.content.decode()
+    html = client.get("/menu/day/?user=1&date=2026-09-14").content.decode()
+    assert "1330" in html
+    assert "осталось 670 ккал" in html
+    assert "Греческий салат" in html
+
+
+def test_day_menu_shows_excess(client):
+    html = client.get("/menu/day/?user=1&date=2026-09-17").content.decode()
+    assert "превышение на 150 ккал" in html
+
+
+def test_day_menu_empty_and_bad_input(client):
+    html = client.get("/menu/day/?user=2&date=2026-10-01").content.decode()
+    assert "На этот день блюд в меню нет." in html
+    html = client.get("/menu/day/?user=1&date=завтра").content.decode()
+    assert "Укажите корректную дату." in html
+
+
+def test_statistics_page(client):
+    response = client.get("/menu/statistics/")
+    html = response.content.decode()
+    assert response.status_code == 200
+    assert "Анна, 2026-09-17" in html
+    assert "+150" in html
+    assert len(response.context["frequent"]) == 2
+    response = client.get("/menu/statistics/?min_count=5")
+    assert "Таких блюд нет." in response.content.decode()
 
 
 def test_page_function_removed():

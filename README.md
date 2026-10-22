@@ -37,8 +37,8 @@
 
 ## Веб-интерфейс (Django)
 
-Используется фреймворк Django 5.2. Веб-слой берёт данные из тех же
-JSON-файлов и использует классы пакета `models/`. Страницы строятся
+Используется фреймворк Django 5.2. С ПР7 веб-слой получает данные из
+базы SQLite SQL-запросами (модуль `sqlite3`, без Django ORM). Страницы строятся
 системой шаблонов Django (DTL): представления только готовят данные
 и передают их в шаблон через `render(request, шаблон, context)`.
 Функция `page()` из ПР5 удалена — HTML в Python больше не собирается.
@@ -56,6 +56,11 @@ Django-проект — `weeklymenu/`, приложения:
 | `/dishes/<id>/` | `dishes.views.dish_detail` | карточка блюда, статус на сегодня |
 | `/menu/` | `menu.views.menu_list` | список записей меню со статусами |
 | `/menu/<id>/` | `menu.views.menu_detail` | карточка записи меню |
+| `/menu/day/?user=<id>&date=<дата>` | `menu.views.day_menu` | меню пользователя на день, калорийность, блюда, которые можно добавить |
+| `/menu/statistics/` | `menu.views.statistics` | статистика по меню и блюдам |
+
+На странице `/dishes/` есть форма подбора блюд по лимиту калорий
+(`?max_calories=300`).
 
 ### Шаблоны
 
@@ -91,11 +96,79 @@ Django-проект — `weeklymenu/`, приложения:
 Запуск веб-сервера:
 
 ```
+pip install -r requirements.txt
+python -m db.import_json
 python manage.py migrate
 python manage.py runserver
 ```
 
 После этого сайт доступен по адресу http://127.0.0.1:8000/.
+
+## База данных (SQLite, ПР7)
+
+Файл базы — `data/weekly_menu.sqlite`. JSON-файлы остаются исходными
+данными консольной версии и источником для импорта.
+
+### Таблицы
+
+`dishes` — блюда
+
+| Поле | Тип | Назначение |
+|------|-----|------------|
+| `id` | INTEGER, PRIMARY KEY | идентификатор |
+| `name` | TEXT, NOT NULL | название |
+| `calories` | INTEGER, NOT NULL, > 0 | калорийность |
+| `dish_type` | TEXT, NOT NULL | завтрак / обед / ужин / перекус |
+
+`users` — пользователи
+
+| Поле | Тип | Назначение |
+|------|-----|------------|
+| `id` | INTEGER, PRIMARY KEY | идентификатор |
+| `name` | TEXT, NOT NULL | имя |
+| `goal` | TEXT, допускает NULL | цель |
+| `daily_limit` | INTEGER, NOT NULL, > 0 | лимит ккал в день |
+
+`menu_entries` — записи меню
+
+| Поле | Тип | Назначение |
+|------|-----|------------|
+| `id` | INTEGER, PRIMARY KEY | идентификатор |
+| `dish_id` | INTEGER, NOT NULL, FOREIGN KEY → `dishes.id` | блюдо |
+| `user_id` | INTEGER, NOT NULL, FOREIGN KEY → `users.id` | пользователь |
+| `menu_date` | TEXT, NOT NULL | дата ГГГГ-ММ-ДД |
+| `is_cancelled` | INTEGER, 0/1, DEFAULT 0 | признак отмены |
+
+Связи: у блюда и у пользователя может быть много записей меню; каждая
+запись относится ровно к одному блюду и одному пользователю.
+
+### Файлы
+
+- `sql/schema.sql` — `CREATE TABLE IF NOT EXISTS` для трёх таблиц;
+- `sql/queries.sql` — 18 проверенных запросов с комментариями:
+  выборка списков, `WHERE` (в т.ч. `IN`, `BETWEEN`, подзапрос
+  `NOT IN`), `JOIN` / `LEFT JOIN`, агрегаты (`COUNT`, `SUM`, `MIN`,
+  `MAX`, `AVG`), `GROUP BY`, `HAVING`;
+- `db/database.py` — `get_connection()` (включает
+  `PRAGMA foreign_keys = ON` и `row_factory = sqlite3.Row`),
+  `fetch_all()` / `fetch_one()` для параметризованных запросов;
+- `db/import_json.py` — перенос данных из JSON (`executemany`,
+  параметры `?`, `commit` / `rollback`); создаёт схему и перед
+  вставкой очищает таблицы, поэтому запуск можно повторять.
+
+Создание и заполнение базы:
+
+```
+python -m db.import_json
+```
+
+### SQL в веб-приложении
+
+Представления `dishes/views.py` и `menu/views.py` выполняют запросы
+из `sql/queries.sql`; значения от пользователя (лимит калорий, дата,
+пользователь, порог частоты) передаются только параметрами `?`, без
+f-строк. Строки результата — `sqlite3.Row`, поэтому в шаблонах поля
+доступны по имени: `{{ dish.name }}`, `{{ entry.dish_name }}`.
 
 ## Структура проекта
 
@@ -104,6 +177,8 @@ python manage.py runserver
 - `homepage/`, `dishes/`, `menu/` — Django-приложения (views,
   urls, шаблоны; статика — в `homepage/static/`);
 - `templates/` — общие шаблоны проекта;
+- `db/` — подключение к SQLite и импорт из JSON;
+- `sql/` — схема БД и SQL-запросы;
 - `main.py` — точка запуска консольного меню;
 - `models/` — пакет предметной области:
   - `dishes.py` — класс `Dish` и функции работы с блюдами;
@@ -144,3 +219,15 @@ pytest -v
 ```
 flake8 . --extend-exclude=venv
 ```
+
+## Текущий этап разработки
+
+На ПР7 данные проекта перенесены из JSON в SQLite: база
+`data/weekly_menu.sqlite` создаётся по `sql/schema.sql` и заполняется
+скриптом `db/import_json.py`, запросы хранятся в `sql/queries.sql`,
+Django-представления получают данные из SQLite и отображают их на
+страницах «Блюда», «Меню», «Меню на день» и «Статистика».
+Консольная версия по-прежнему работает с JSON.
+
+На следующих практических работах база будет подключена к Django
+через Django ORM.

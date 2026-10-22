@@ -75,5 +75,47 @@
     "menu_date": "2026-09-14",
     "user_id": 2,
     "is_cancelled": false
+  },
+  {
+    "id": 12,
+    "dish_id": 6,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
+  },
+  {
+    "id": 13,
+    "dish_id": 5,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
+  },
+  {
+    "id": 14,
+    "dish_id": 4,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
+  },
+  {
+    "id": 15,
+    "dish_id": 8,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
+  },
+  {
+    "id": 16,
+    "dish_id": 7,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
+  },
+  {
+    "id": 17,
+    "dish_id": 2,
+    "menu_date": "2026-09-17",
+    "user_id": 1,
+    "is_cancelled": false
   }
 ]

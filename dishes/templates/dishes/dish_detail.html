@@ -30,11 +30,11 @@
                 </p>
 
                 <p class="card-text">
-                    Статус на сегодня:
-                    {% if planned %}
-                        <span class="badge bg-success">в меню</span>
+                    Запланировано в активном меню:
+                    {% if times_planned %}
+                        <span class="badge bg-success">{{ times_planned }}</span>
                     {% else %}
-                        <span class="badge bg-secondary">не в меню</span>
+                        <span class="badge bg-secondary">не запланировано</span>
                     {% endif %}
                 </p>
             </div>

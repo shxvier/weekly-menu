@@ -17,8 +17,11 @@
                 </h1>
 
                 <p class="card-text">
-                    <strong>Блюдо:</strong> {{ entry.dish.name }}
-                    ({{ entry.dish.calories }} ккал)
+                    <strong>Блюдо:</strong>
+                    <a href="{% url 'dishes:detail' entry.dish_id %}">
+                        {{ entry.dish_name }}
+                    </a>
+                    ({{ entry.calories }} ккал, {{ entry.dish_type }})
                 </p>
 
                 <p class="card-text">
@@ -26,7 +29,8 @@
                 </p>
 
                 <p class="card-text">
-                    <strong>Пользователь:</strong> {{ entry.user.name }}
+                    <strong>Пользователь:</strong> {{ entry.user_name }}
+                    (лимит {{ entry.daily_limit }} ккал в день)
                 </p>
 
                 <p class="card-text">
