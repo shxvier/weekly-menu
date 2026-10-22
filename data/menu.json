@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "dish_id": 1,
+    "menu_date": "2026-09-14"
+  },
+  {
+    "id": 2,
+    "dish_id": 5,
+    "menu_date": "2026-09-14"
+  },
+  {
+    "id": 3,
+    "dish_id": 6,
+    "menu_date": "2026-09-14"
+  },
+  {
+    "id": 4,
+    "dish_id": 2,
+    "menu_date": "2026-09-15"
+  },
+  {
+    "id": 5,
+    "dish_id": 4,
+    "menu_date": "2026-09-15"
+  },
+  {
+    "id": 6,
+    "dish_id": 8,
+    "menu_date": "2026-09-15"
+  },
+  {
+    "id": 7,
+    "dish_id": 1,
+    "menu_date": "2026-09-16"
+  },
+  {
+    "id": 8,
+    "dish_id": 3,
+    "menu_date": "2026-09-16"
+  }
+]
