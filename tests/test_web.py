@@ -51,3 +51,30 @@ def test_custom_404_page(client):
     response = client.get("/nonexistent/")
     assert response.status_code == 404
     assert "404 – страница не найдена" in response.content.decode()
+
+
+def test_pages_use_base_template_and_static(client):
+    html = client.get("/").content.decode()
+    assert "homepage/css/style.css" in html
+    assert "homepage/js/main.js" in html
+    assert "homepage/img/logo.png" in html
+    assert 'id="current-year"' in html
+
+
+def test_dish_list_uses_filters_and_cards(client):
+    response = client.get("/dishes/")
+    html = response.content.decode()
+    assert "Всего блюд: 9" in html
+    assert html.count("dish-card") == 9
+    assert response.context["dishes"][0].name == "Овсяная каша с ягодами"
+
+
+def test_named_urls_in_navigation(client):
+    html = client.get("/menu/").content.decode()
+    assert 'href="/dishes/"' in html
+    assert 'href="/menu/1/"' in html
+
+
+def test_page_function_removed():
+    import homepage.views
+    assert not hasattr(homepage.views, "page")

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Главная – Меню на неделю
+{% endblock %}
+
+{% block content %}
+    <h1 class="display-4">Меню на неделю</h1>
+
+    <p class="lead">
+        Сервис формирования меню на неделю.
+    </p>
+    <p>
+        Подбирайте блюда по дням, следите за калорийностью
+        и сохраняйте меню.
+    </p>
+    <p>Основные разделы:</p>
+    <a href="{% url 'dishes:list' %}" class="btn btn-primary me-2">
+        Блюда
+    </a>
+    <a href="{% url 'menu:list' %}" class="btn btn-secondary">
+        Меню
+    </a>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Меню – Меню на неделю
+{% endblock %}
+
+{% block content %}
+    <h1>Меню</h1>
+
+    <p>
+        Всего записей: {{ entries|length }}
+    </p>
+
+    <ul class="list-group">
+        {% for entry in entries %}
+            <li class="list-group-item d-flex justify-content-between">
+                <a href="{% url 'menu:detail' entry.id %}">
+                    №{{ entry.id }}: {{ entry.menu_date }} –
+                    {{ entry.dish.name }} ({{ entry.user.name }})
+                </a>
+                {% include "menu/includes/menu_status.html" %}
+            </li>
+        {% empty %}
+            <li class="list-group-item">
+                Записей меню не найдено.
+            </li>
+        {% endfor %}
+    </ul>
+{% endblock %}

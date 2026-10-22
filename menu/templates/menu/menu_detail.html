@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if entry %}
+        Запись меню №{{ entry.id }} – Меню на неделю
+    {% else %}
+        Запись меню не найдена – Меню на неделю
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if entry %}
+        <div class="card">
+            <div class="card-body">
+                <h1 class="card-title">
+                    Запись меню №{{ entry.id }}
+                </h1>
+
+                <p class="card-text">
+                    <strong>Блюдо:</strong> {{ entry.dish.name }}
+                    ({{ entry.dish.calories }} ккал)
+                </p>
+
+                <p class="card-text">
+                    <strong>Дата:</strong> {{ entry.menu_date }}
+                </p>
+
+                <p class="card-text">
+                    <strong>Пользователь:</strong> {{ entry.user.name }}
+                </p>
+
+                <p class="card-text">
+                    <strong>Статус:</strong>
+                    {% include "menu/includes/menu_status.html" %}
+                </p>
+            </div>
+        </div>
+    {% else %}
+        <h1 class="text-danger">
+            Запись меню не найдена
+        </h1>
+        <p>
+            Запись с указанным идентификатором отсутствует.
+        </p>
+    {% endif %}
+
+    <a
+        href="{% url 'menu:list' %}"
+        class="btn btn-outline-secondary mt-3"
+    >
+        ← к списку меню
+    </a>
+{% endblock %}

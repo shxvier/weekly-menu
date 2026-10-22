@@ -1,0 +1,9 @@
+{% if entry.is_cancelled %}
+    <span class="badge bg-secondary menu-status menu-status-cancelled">
+        Отменено
+    </span>
+{% else %}
+    <span class="badge bg-success menu-status menu-status-active">
+        Активно
+    </span>
+{% endif %}

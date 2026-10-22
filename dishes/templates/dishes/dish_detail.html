@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if dish %}
+        {{ dish.name }} – Меню на неделю
+    {% else %}
+        Блюдо не найдено – Меню на неделю
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if dish %}
+        <div class="card dish-card">
+            <div class="card-body">
+                <h1 class="card-title">
+                    {{ dish.name }}
+                </h1>
+
+                <p class="card-text">
+                    <strong>ID:</strong> {{ dish.id }}
+                </p>
+
+                <p class="card-text">
+                    <strong>Калорийность:</strong>
+                    {{ dish.calories }} ккал
+                </p>
+
+                <p class="card-text">
+                    <strong>Тип:</strong> {{ dish.dish_type|capfirst }}
+                </p>
+
+                <p class="card-text">
+                    Статус на сегодня:
+                    {% if planned %}
+                        <span class="badge bg-success">в меню</span>
+                    {% else %}
+                        <span class="badge bg-secondary">не в меню</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    {% else %}
+        <h1 class="text-danger">
+            Блюдо не найдено
+        </h1>
+        <p>
+            Блюдо с указанным идентификатором отсутствует.
+        </p>
+    {% endif %}
+
+    <a
+        href="{% url 'dishes:list' %}"
+        class="btn btn-outline-secondary mt-3"
+    >
+        ← к списку блюд
+    </a>
+{% endblock %}

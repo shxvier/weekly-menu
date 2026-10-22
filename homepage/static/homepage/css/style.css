@@ -1,0 +1,33 @@
+body {
+    min-height: 100vh;
+}
+
+.site-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.menu-logo {
+    width: 64px;
+    height: auto;
+    margin: 1rem 0;
+}
+
+.dish-card {
+    padding: 0.25rem;
+    border: 1px solid #cfe3d4;
+    border-radius: 8px;
+}
+
+.dish-card:hover {
+    box-shadow: 0 2px 8px rgba(40, 110, 70, 0.15);
+}
+
+.menu-status {
+    font-weight: 600;
+}
+
+.menu-status-cancelled {
+    text-decoration: line-through;
+}

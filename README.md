@@ -38,8 +38,10 @@
 ## Веб-интерфейс (Django)
 
 Используется фреймворк Django 5.2. Веб-слой берёт данные из тех же
-JSON-файлов и использует классы пакета `models/`; страницы оформлены
-с помощью HTML и Bootstrap 5.3 (подключён через CDN).
+JSON-файлов и использует классы пакета `models/`. Страницы строятся
+системой шаблонов Django (DTL): представления только готовят данные
+и передают их в шаблон через `render(request, шаблон, context)`.
+Функция `page()` из ПР5 удалена — HTML в Python больше не собирается.
 
 Django-проект — `weeklymenu/`, приложения:
 
@@ -54,6 +56,33 @@ Django-проект — `weeklymenu/`, приложения:
 | `/dishes/<id>/` | `dishes.views.dish_detail` | карточка блюда, статус на сегодня |
 | `/menu/` | `menu.views.menu_list` | список записей меню со статусами |
 | `/menu/<id>/` | `menu.views.menu_detail` | карточка записи меню |
+
+### Шаблоны
+
+- `templates/base.html` — базовый шаблон: `<head>`, Bootstrap 5.3,
+  собственный CSS, логотип, навигация, подвал, JS; блоки
+  `{% block title %}` и `{% block content %}`;
+- `templates/includes/navigation.html` — меню (подключается через
+  `{% include %}`);
+- `homepage/templates/homepage/index.html`, `404.html`;
+- `dishes/templates/dishes/dish_list.html`, `dish_detail.html`,
+  `includes/dish_card.html` — карточка блюда;
+- `menu/templates/menu/menu_list.html`, `menu_detail.html`,
+  `includes/menu_status.html` — статус записи меню.
+
+Все дочерние шаблоны используют `{% extends "base.html" %}`. В шаблонах
+применяются циклы `{% for %}` с `{% empty %}`, условия `{% if %}`
+(отменённая/активная запись, найден ли объект), фильтры `length`,
+`default`, `capfirst`. Ссылки строятся только через именованные
+маршруты с пространствами имён: `{% url 'dishes:detail' dish.id %}`,
+`{% url 'menu:list' %}`, `{% url 'homepage:index' %}`.
+
+### Статические файлы
+
+`homepage/static/homepage/`: `css/style.css` (собственные стили
+карточек, статусов и шапки), `js/main.js` (подставляет текущий год в
+подвал), `img/logo.png`. Подключаются через `{% load static %}` и
+`{% static '...' %}`.
 
 Для несуществующих `id` страницы возвращают код 404, для любых
 неизвестных адресов подключён собственный обработчик `handler404`
@@ -72,7 +101,9 @@ python manage.py runserver
 
 - `manage.py` — управление Django-проектом;
 - `weeklymenu/` — настройки и корневые маршруты Django;
-- `homepage/`, `dishes/`, `menu/` — Django-приложения;
+- `homepage/`, `dishes/`, `menu/` — Django-приложения (views,
+  urls, шаблоны; статика — в `homepage/static/`);
+- `templates/` — общие шаблоны проекта;
 - `main.py` — точка запуска консольного меню;
 - `models/` — пакет предметной области:
   - `dishes.py` — класс `Dish` и функции работы с блюдами;
