@@ -7,3 +7,6 @@ venv/
 .vscode/
 
 db.sqlite3
+
+# резервные копии исходной базы
+data/*_backup.sqlite

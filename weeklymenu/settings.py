@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "homepage",
     "dishes",
     "menu",
+    "users",
 ]
 
 MIDDLEWARE = [
