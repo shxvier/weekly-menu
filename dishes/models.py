@@ -22,6 +22,7 @@ class Dish(models.Model):
     calories = models.PositiveIntegerField(
         validators=[MinValueValidator(1)],
         verbose_name="Калорийность, ккал",
+        help_text="Калорийность одной порции, целое число не меньше 1.",
     )
     # Тип блюда из фиксированного набора; по умолчанию – обед.
     dish_type = models.CharField(
