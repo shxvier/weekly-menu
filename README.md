@@ -55,13 +55,14 @@ Django-проект — `weeklymenu/`, приложения:
 |-----|------|----------|
 | `/` | `homepage.views.index` | главная, навигация |
 | `/dishes/` | `dishes.views.dish_list` | список блюд: поиск по названию, лимит калорий, сортировка |
-| `/dishes/<id>/` | `dishes.views.dish_detail` | карточка блюда, сколько раз оно в меню |
-| `/menu/` | `menu.views.menu_list` | активные записи меню: фильтр по дате, блюду, пользователю, поиск, сортировка, пагинация |
+| `/dishes/<slug>/` | `dishes.views.dish_detail` | карточка блюда по slug (например `/dishes/grecheskii-salat-3/`), сколько раз оно в меню |
+| `/menu/` | `menu.views.menu_list` | записи меню: фильтр по дате, блюду, пользователю, статусу, поиск, сортировка, пагинация |
+| `/admin/` | Django Admin | административная панель |
 | `/menu/<id>/` | `menu.views.menu_detail` | карточка записи меню |
 | `/menu/day/?user=<id>&date=<дата>` | `menu.views.day_menu` | меню пользователя на день, калорийность, блюда, которые можно добавить |
 | `/menu/statistics/` | `menu.views.statistics` | статистика по меню и блюдам |
 
-Параметры списка меню: `?date=ГГГГ-ММ-ДД&dish=<id>&user=<id>&q=<текст>&sort=date|dish|user|calories&page=<N>`
+Параметры списка меню: `?date=ГГГГ-ММ-ДД&dish=<id>&user=<id>&status=active|completed|cancelled&q=<текст>&sort=date|dish|user|calories&page=<N>`
 (по 5 записей на страницу). Параметры списка блюд:
 `?q=<текст>&max_calories=<N>&sort=name|calories|-calories`.
 
@@ -111,15 +112,18 @@ python manage.py runserver
 
 | Модель | Приложение | Поля | Связи |
 |--------|------------|------|-------|
-| `Dish` — блюдо | `dishes/models.py` | `name` (CharField 200), `calories` (PositiveIntegerField ≥ 1), `dish_type` (CharField с choices, по умолчанию «обед») | — |
+| `Dish` — блюдо | `dishes/models.py` | `name` (CharField 200), `slug` (SlugField, уникальный, формируется автоматически), `calories` (PositiveIntegerField ≥ 1, `help_text`), `dish_type` (CharField с choices, по умолчанию «обед»), `is_light` (GeneratedField: `calories <= 300`) | — |
 | `User` — пользователь | `users/models.py` | `name` (CharField 100), `goal` (CharField 200, `blank=True`), `daily_limit` (PositiveIntegerField ≥ 1) | — |
-| `MenuEntry` — запись меню | `menu/models.py` | `dish`, `user` (ForeignKey), `menu_date` (DateField), `is_cancelled` (BooleanField, `default=False`) | `dish` → `Dish`, `user` → `User`; `on_delete=PROTECT`, `related_name="menu_entries"` |
+| `MenuEntry` — запись меню | `menu/models.py` | `dish`, `user` (ForeignKey), `menu_date` (DateField), `status` (TextChoices: `active` «Запланировано», `completed` «Выполнено», `cancelled` «Отменено»; по умолчанию `active`) | `dish` → `Dish`, `user` → `User`; `on_delete=PROTECT`, `related_name="menu_entries"` |
 
 Первичные ключи `id` Django создаёт автоматически (`BigAutoField`).
 `PROTECT` запрещает удалить блюдо или пользователя, пока на них
 ссылаются записи меню, — история меню сохраняется. Обратные связи:
 `dish.menu_entries.all()`, `user.menu_entries.all()`. Метод
-`MenuEntry.cancel()` отменяет запись (`save(update_fields=[...])`).
+`MenuEntry.cancel()` переводит запись в статус «Отменено»
+(`save(update_fields=["status"])`). До ПР10 вместо `status` было поле
+`is_cancelled`; его значения перенесены миграцией данных
+`menu/migrations/0003_migrate_menu_statuses.py`, после чего поле удалено.
 Модель `users.User` — пользователь предметной области, а не встроенная
 модель аутентификации Django.
 
@@ -178,6 +182,52 @@ python db/import_sqlite_to_orm.py        # перенос: блюда, поль�
 регистрирует Unicode-версию функции `like()` (сигнал `connection_created`).
 Код запросов остаётся стандартным: `name__icontains="овс"` находит
 «Овсяная каша».
+
+## Административная панель и дополнительные возможности (ПР10)
+
+Вход: `/admin/` под суперпользователем Django
+(`python manage.py createsuperuser`). Суперпользователь — учётная запись
+`django.contrib.auth`, а не объект `users.User`.
+
+| Модель | Настройки `ModelAdmin` |
+|--------|------------------------|
+| `Dish` (`dishes/admin.py`) | столбцы id, название, ккал, тип, «лёгкое», «записей в меню» (аннотация `Count` в `get_queryset`), ссылка на сайт; переход по названию; `list_editable` для ккал; поиск по названию; фильтры по типу и `is_light`; сортировка по названию; 20 на странице; `readonly_fields` id, slug, is_light; inline записей меню; `view_on_site` |
+| `User` (`users/admin.py`) | id, имя, цель, лимит; поиск по имени и цели; inline записей меню |
+| `MenuEntry` (`menu/admin.py`) | id, дата, блюдо, ккал блюда (`@admin.display`, сортировка по `dish__calories`), пользователь, статус; поиск по `dish__name`, `user__name`; фильтры по дате, статусу, типу блюда, пользователю; `list_select_related`; `date_hierarchy`; `autocomplete_fields`; массовые действия «Отменить», «Отметить как выполненные», «Вернуть в запланированные» |
+
+Названия приложений на русском заданы в `apps.py` (`verbose_name`),
+моделей и полей — в `Meta` и `verbose_name` полей.
+
+Менеджер записей меню (`menu/models.py`):
+`MenuEntry.objects.active()`, `.completed()`, `.cancelled()`,
+`.in_menu()` (все, кроме отменённых), `.for_date(date)`. Методы
+используются в представлениях списка, меню на день, карточки блюда и
+статистики.
+
+Правило предметной области: в меню дня (калорийность, запрет повторного
+блюда на дату, статистика) учитываются записи «Запланировано» и
+«Выполнено». Отменённая запись остаётся в истории, но блюдо снова можно
+добавить. В отличие от бронирования, где завершённая бронь уже в прошлом,
+съеденное блюдо остаётся частью рациона дня.
+
+Дополнительно:
+
+- `Dish.is_light` — `GeneratedField` (`db_persist=True`): база данных
+  сама вычисляет признак «до 300 ккал» и пересчитывает его при
+  изменении калорийности;
+- `Dish.slug` — транслитерация названия (`Unidecode`) + id, формируется
+  в `save()`, уникален; заполнен у существующих блюд миграцией
+  `dishes/migrations/0005_populate_dish_slugs.py`;
+  `Dish.get_absolute_url()` строит адрес через `reverse("dishes:detail")`
+  и используется в шаблонах и в админке («Смотреть на сайте»);
+- контекстный процессор `dishes/context_processors.py` передаёт во все
+  шаблоны `site_name`, `dishes_count` (в навигации «Блюда (N)») и
+  константы статусов `MenuStatus`;
+- Django Debug Toolbar (при `DEBUG = True`, `INTERNAL_IPS`) — вкладка SQL.
+  Число запросов на страницах не зависит от числа записей: карточка
+  записи меню — 1 запрос с JOIN двух таблиц, список меню — 5 (подсчёт
+  для пагинатора, счётчики статусов, два справочника, текущая страница),
+  плюс 1 запрос контекстного процессора.
 
 ## База данных (SQLite, ПР7)
 
@@ -248,9 +298,11 @@ python -m db.import_json
 - `manage.py` — управление Django-проектом;
 - `weeklymenu/` — настройки и корневые маршруты Django;
 - `homepage/` — главная, 404, Unicode-`LIKE` для SQLite, общая статика;
-- `dishes/` — модель `Dish`, представления и шаблоны блюд;
-- `menu/` — модель `MenuEntry`, представления и шаблоны меню;
-- `users/` — модель `User`;
+- `dishes/` — модель `Dish`, админка, контекстный процессор,
+  представления и шаблоны блюд;
+- `menu/` — модель `MenuEntry` и её менеджер, админка, представления и
+  шаблоны меню;
+- `users/` — модель `User` и её админка;
 - `*/migrations/` — миграции моделей (хранятся в Git);
 - `templates/` — общие шаблоны проекта;
 - `db/` — скрипты: `import_json.py` (JSON → база ПР7),
@@ -268,7 +320,7 @@ python -m db.import_json
 
 ## Требования
 
-- Python 3.x, Django 5.2;
+- Python 3.x, Django 5.2, django-debug-toolbar, Unidecode;
 - pytest, pytest-django;
 - flake8.
 
@@ -282,10 +334,11 @@ venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
 python db/import_sqlite_to_orm.py
+python manage.py createsuperuser
 python manage.py runserver
 ```
 
-Сайт: http://127.0.0.1:8000/.
+Сайт: http://127.0.0.1:8000/, административная панель: http://127.0.0.1:8000/admin/.
 
 ## Запуск консольной версии
 
@@ -305,11 +358,13 @@ flake8 . --extend-exclude=venv
 
 ## Текущий этап разработки
 
-На ПР9 слой данных переведён с SQL-запросов через `sqlite3` на Django
-ORM: описаны модели `Dish`, `User`, `MenuEntry` со связями, структура
-базы создаётся миграциями, данные перенесены из базы ПР7 без потери
-связей, все страницы получают данные через ORM. Список меню получил
-фильтрацию, поиск, сортировку и постраничный вывод.
+ПР9: слой данных переведён на Django ORM (модели, миграции, перенос из
+базы ПР7, фильтрация, поиск, сортировка, пагинация).
+
+ПР10: настроена административная панель, добавлены менеджер записей
+меню, статусы TextChoices вместо `is_cancelled`, вычисляемое поле
+`is_light`, адреса блюд по slug и `get_absolute_url()`, контекстный
+процессор и Django Debug Toolbar.
 
 ## Автор
 
