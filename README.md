@@ -153,29 +153,29 @@ python db/import_sqlite_to_orm.py        # перенос: блюда, поль�
 | 2 | список блюд | `.filter(name__icontains=q)` | поиск по строковому полю |
 | 3 | список блюд | `.filter(calories__lte=N)` | фильтр по одному условию |
 | 4 | список блюд | `.order_by(*DISH_SORT_FIELDS[sort])` | сортировка по одному и нескольким полям |
-| 5 | карточка блюда | `get_object_or_404(Dish, pk=dish_id)` | один объект, 404 |
-| 6 | карточка блюда | `dish.menu_entries.filter(is_cancelled=False).count()` | обратная связь, подсчёт |
-| 7 | список меню | `MenuEntry.objects.filter(is_cancelled=False)` + `.filter(menu_date=...)`, `.filter(dish_id=...)`, `.filter(user_id=...)` | фильтр по нескольким условиям и внешним ключам |
+| 5 | карточка блюда | `get_object_or_404(Dish, slug=slug)` (в ПР9 — по `pk`) | один объект, 404 |
+| 6 | карточка блюда | `dish.menu_entries.in_menu().count()` | обратная связь, метод менеджера, подсчёт |
+| 7 | список меню | `MenuEntry.objects.in_menu()` (или `active()`/`completed()`/`cancelled()` по параметру status) + `.for_date(...)`, `.filter(dish_id=...)`, `.filter(user_id=...)` | фильтр по нескольким условиям и внешним ключам |
 | 8 | список меню | `.filter(Q(dish__name__icontains=q) \| Q(user__name__icontains=q))` | поиск по нескольким полям связанных моделей |
 | 9 | список меню | `.annotate(dish_name=F("dish__name"), ...).order_by(...).values(...)` | поля связанных моделей, сортировка по связанному полю, сокращённый набор полей |
 | 10 | список меню | `Paginator(entries, 5).get_page(page)` | постраничный вывод |
-| 11 | список меню, статистика | `MenuEntry.objects.aggregate(Count("id", filter=Q(...)))` | сводный показатель |
+| 11 | список меню, статистика | `MenuEntry.objects.aggregate(Count("id", filter=Q(status=...)))` по каждому статусу | сводный показатель |
 | 12 | запись меню | `get_object_or_404(MenuEntry.objects.select_related("dish", "user"), pk=...)` | связанные объекты одним запросом |
-| 13 | меню на день | `.filter(user=user, menu_date=d, is_cancelled=False).select_related("dish")` | несколько условий, `select_related` |
+| 13 | меню на день | `MenuEntry.objects.in_menu().for_date(d).filter(user=user).select_related("dish")` | несколько условий, `select_related` |
 | 14 | меню на день | `day_entries.aggregate(total=Sum("dish__calories"))` | сумма по связанному полю |
 | 15 | меню на день | `Dish.objects.exclude(pk__in=day_entries.values_list("dish_id", flat=True))` | исключение `exclude()` |
 | 16 | статистика | `Dish.objects.aggregate(Count, Min, Max, Avg)` | агрегирование |
 | 17 | статистика | `Dish.objects.values("dish_type").annotate(Count, Avg)` | группировка |
-| 18 | статистика | `Dish.objects.annotate(times_planned=Count("menu_entries", filter=Q(...)))` | аннотирование, блюда без записей сохраняются (0) |
+| 18 | статистика | `Dish.objects.annotate(times_planned=Count("menu_entries", filter=Q(menu_entries__status__in=...)))` | аннотирование, блюда без записей сохраняются (0) |
 | 19 | статистика | `active.values("menu_date", user_name=F(...)).annotate(Count, Sum)` | группировка по пользователю и дате |
 | 20 | статистика | `.filter(day_calories__gt=F("daily_limit")).annotate(excess=...)` | условие на агрегат (HAVING) |
-| 21 | статистика | `Dish.objects.filter(menu_entries__is_cancelled=False).annotate(Count).filter(times_planned__gt=N)` | фильтр по связанной модели + HAVING |
+| 21 | статистика | `Dish.objects.filter(menu_entries__status__in=...).annotate(Count).filter(times_planned__gt=N)` | фильтр по связанной модели + HAVING |
 
 Поле сортировки выбирается только из словарей `DISH_SORT_FIELDS` и
 `ENTRY_SORT_FIELDS`, неизвестное значение заменяется сортировкой по
 умолчанию — пользовательский ввод не передаётся в `order_by()`.
-Отменённые записи не учитываются ни в списке, ни в меню на день, ни в
-статистике.
+Отменённые записи не учитываются ни в списке (по умолчанию), ни в меню
+на день, ни в статистике.
 
 Поиск по кириллице. Встроенный `LIKE` SQLite не учитывает регистр только
 для латиницы, поэтому `homepage/sqlite_unicode.py` при подключении к базе
