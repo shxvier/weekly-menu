@@ -1,9 +1,13 @@
-{% if entry.is_cancelled %}
+{% if entry.status == "cancelled" %}
     <span class="badge bg-secondary menu-status menu-status-cancelled">
         Отменено
     </span>
+{% elif entry.status == "completed" %}
+    <span class="badge bg-info text-dark menu-status menu-status-completed">
+        Выполнено
+    </span>
 {% else %}
     <span class="badge bg-success menu-status menu-status-active">
-        Активно
+        Запланировано
     </span>
 {% endif %}

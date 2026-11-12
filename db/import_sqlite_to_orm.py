@@ -78,7 +78,12 @@ def main(source_db=SOURCE_DB):
                     "user_id": row["user_id"],
                     # Строка ГГГГ-ММ-ДД -> объект date для DateField.
                     "menu_date": date.fromisoformat(row["menu_date"]),
-                    "is_cancelled": bool(row["is_cancelled"]),
+                    # 0/1 из ПР7 -> статус записи.
+                    "status": (
+                        MenuEntry.Status.CANCELLED
+                        if row["is_cancelled"]
+                        else MenuEntry.Status.ACTIVE
+                    ),
                 },
             )
 

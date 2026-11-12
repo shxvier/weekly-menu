@@ -13,8 +13,9 @@
                 <div class="card-body">
                     <h2 class="h5">Записи меню</h2>
                     <p class="mb-1">Всего: {{ counts.total_entries }}</p>
-                    <p class="mb-1">Активных: {{ counts.active_entries }}</p>
-                    <p class="mb-0">Отменённых: {{ counts.cancelled_entries }}</p>
+                    <p class="mb-1">Запланировано: {{ counts.active_entries }}</p>
+                    <p class="mb-1">Выполнено: {{ counts.completed_entries }}</p>
+                    <p class="mb-0">Отменено: {{ counts.cancelled_entries }}</p>
                 </div>
             </div>
         </div>

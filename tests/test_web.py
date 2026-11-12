@@ -22,8 +22,8 @@ def test_list_shows_domain_data(client):
 
 def test_menu_shows_only_active_entries(client):
     html = client.get("/menu/").content.decode()
-    assert "Активных записей: 16" in html
-    assert "отменённых: 1" in html
+    assert "Запланировано: 16" in html
+    assert "отменено: 1" in html
     assert 'href="/menu/9/"' not in html
 
 

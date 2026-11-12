@@ -3,6 +3,7 @@ from django.db.models import Count, Q
 
 from dishes.models import Dish
 from menu.admin import MenuEntryInline
+from menu.models import MenuEntry
 
 
 @admin.register(Dish)
@@ -12,7 +13,7 @@ class DishAdmin(admin.ModelAdmin):
         "name",
         "calories",
         "dish_type",
-        "active_entries_count",
+        "entries_in_menu",
     )
     list_display_links = ("name",)
     # Калорийность можно править прямо в списке.
@@ -25,14 +26,16 @@ class DishAdmin(admin.ModelAdmin):
     inlines = (MenuEntryInline,)
 
     def get_queryset(self, request):
-        # Число активных записей считается одним запросом для всех строк.
+        # Число записей в меню считается одним запросом для всех строк.
         return super().get_queryset(request).annotate(
-            active_entries=Count(
+            in_menu_count=Count(
                 "menu_entries",
-                filter=Q(menu_entries__is_cancelled=False),
+                filter=Q(
+                    menu_entries__status__in=MenuEntry.IN_MENU_STATUSES,
+                ),
             ),
         )
 
-    @admin.display(description="Активных записей", ordering="active_entries")
-    def active_entries_count(self, obj):
-        return obj.active_entries
+    @admin.display(description="Записей в меню", ordering="in_menu_count")
+    def entries_in_menu(self, obj):
+        return obj.in_menu_count

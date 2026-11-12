@@ -44,7 +44,7 @@ def test_import_keeps_ids_dates_and_statuses():
     assert Dish.objects.count() == 9
     assert User.objects.count() == 2
     assert MenuEntry.objects.count() == 17
-    assert MenuEntry.objects.get(pk=9).is_cancelled is True
+    assert MenuEntry.objects.get(pk=9).status == MenuEntry.Status.CANCELLED
     assert MenuEntry.objects.get(pk=1).menu_date == date(2026, 9, 14)
 
 
@@ -57,8 +57,9 @@ def test_crud_and_cancel():
     entry = MenuEntry.objects.create(
         dish=dish, user_id=1, menu_date=date(2026, 9, 20),
     )
+    assert entry.status == MenuEntry.Status.ACTIVE
     entry.cancel()
-    assert MenuEntry.objects.get(pk=entry.pk).is_cancelled is True
+    assert MenuEntry.objects.get(pk=entry.pk).status == "cancelled"
     entry.delete()
     dish.delete()
     assert not Dish.objects.filter(name="Тестовый суп").exists()
@@ -112,6 +113,15 @@ def test_menu_sorting(client):
     assert client.get("/menu/?sort=bad").context["sort"] == "date"
 
 
+def test_menu_status_filter(client):
+    assert entry_ids(client.get("/menu/?status=cancelled")) == [9]
+    assert client.get("/menu/?status=completed").context["entries"] \
+        .paginator.count == 0
+    assert client.get("/menu/?status=active").context["entries"] \
+        .paginator.count == 16
+    assert client.get("/menu/?status=bad").context["status"] == ""
+
+
 def test_menu_excludes_cancelled_entries(client):
     response = client.get("/menu/?date=2026-09-16")
     assert 9 not in entry_ids(response)
@@ -157,7 +167,8 @@ def test_statistics_keeps_dishes_without_entries(client):
 def test_statistics_aggregates(client):
     context = client.get("/menu/statistics/").context
     assert context["counts"] == {
-        "total_entries": 17, "active_entries": 16, "cancelled_entries": 1,
+        "total_entries": 17, "active_entries": 16,
+        "completed_entries": 0, "cancelled_entries": 1,
     }
     assert context["calories_range"]["min_calories"] == 190
     over = list(context["over_limit"])

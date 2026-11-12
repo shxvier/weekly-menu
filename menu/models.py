@@ -8,12 +8,20 @@ class MenuEntryQuerySet(models.QuerySet):
     """Повторно используемые условия выборки записей меню."""
 
     def active(self):
-        """Только активные (не отменённые) записи."""
-        return self.filter(is_cancelled=False)
+        """Только запланированные записи."""
+        return self.filter(status=self.model.Status.ACTIVE)
 
     def cancelled(self):
         """Только отменённые записи."""
-        return self.filter(is_cancelled=True)
+        return self.filter(status=self.model.Status.CANCELLED)
+
+    def completed(self):
+        """Только выполненные (съеденные) записи."""
+        return self.filter(status=self.model.Status.COMPLETED)
+
+    def in_menu(self):
+        """Записи, входящие в меню: все, кроме отменённых."""
+        return self.exclude(status=self.model.Status.CANCELLED)
 
     def for_date(self, selected_date):
         """Записи на указанную дату (объект datetime.date)."""
@@ -25,7 +33,23 @@ class MenuEntryManager(models.Manager.from_queryset(MenuEntryQuerySet)):
 
 
 class MenuEntry(models.Model):
-    """Запись меню: блюдо, запланированное пользователю на дату."""
+    """Запись меню: блюдо, запланированное пользователю на дату.
+
+    В меню дня (калорийность, запрет повторного блюда, статистика)
+    учитываются запланированные и выполненные записи; отменённые –
+    нет, но остаются в истории.
+    """
+
+    class Status(models.TextChoices):
+        # Блюдо запланировано.
+        ACTIVE = "active", "Запланировано"
+        # Запись отменена: остаётся в истории, в меню не учитывается.
+        CANCELLED = "cancelled", "Отменено"
+        # Блюдо съедено: запись остаётся частью меню дня.
+        COMPLETED = "completed", "Выполнено"
+
+    # Статусы записей, входящих в меню.
+    IN_MENU_STATUSES = (Status.ACTIVE, Status.COMPLETED)
 
     # Блюдо записи. PROTECT запрещает удалить блюдо, пока оно
     # встречается в меню, – история меню сохраняется.
@@ -46,10 +70,11 @@ class MenuEntry(models.Model):
     menu_date = models.DateField(
         verbose_name="Дата",
     )
-    # Отменённая запись остаётся в истории и не учитывается в меню.
-    is_cancelled = models.BooleanField(
-        default=False,
-        verbose_name="Запись отменена",
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        verbose_name="Статус",
     )
 
     objects = MenuEntryManager()
@@ -64,5 +89,5 @@ class MenuEntry(models.Model):
 
     def cancel(self):
         """Отменить запись и сохранить только изменённое поле."""
-        self.is_cancelled = True
-        self.save(update_fields=["is_cancelled"])
+        self.status = self.Status.CANCELLED
+        self.save(update_fields=["status"])

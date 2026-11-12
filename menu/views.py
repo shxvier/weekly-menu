@@ -23,19 +23,44 @@ ENTRY_SORT_FIELDS = {
 }
 
 
+def status_counts():
+    """Число записей всего и по каждому статусу (один запрос)."""
+    return MenuEntry.objects.aggregate(
+        total_entries=Count("id"),
+        active_entries=Count("id", filter=Q(status=MenuEntry.Status.ACTIVE)),
+        completed_entries=Count(
+            "id", filter=Q(status=MenuEntry.Status.COMPLETED),
+        ),
+        cancelled_entries=Count(
+            "id", filter=Q(status=MenuEntry.Status.CANCELLED),
+        ),
+    )
+
+
 def menu_list(request):
-    """Активные записи меню: фильтры, поиск, сортировка, пагинация."""
+    """Записи меню: фильтры, поиск, сортировка, пагинация."""
     raw_date = request.GET.get("date", "").strip()
     dish_id = request.GET.get("dish", "").strip()
     user_id = request.GET.get("user", "").strip()
     query = request.GET.get("q", "").strip()
+    status = request.GET.get("status", "").strip()
     sort = request.GET.get("sort", "date")
     if sort not in ENTRY_SORT_FIELDS:
         sort = "date"
     error = None
 
-    # Только активные записи меню (метод менеджера).
-    entries = MenuEntry.objects.active()
+    # Статус выбирается методом менеджера; по умолчанию – записи меню
+    # без отменённых.
+    status_filters = {
+        MenuEntry.Status.ACTIVE: MenuEntry.objects.active,
+        MenuEntry.Status.COMPLETED: MenuEntry.objects.completed,
+        MenuEntry.Status.CANCELLED: MenuEntry.objects.cancelled,
+    }
+    if status in status_filters:
+        entries = status_filters[status]()
+    else:
+        status = ""
+        entries = MenuEntry.objects.in_menu()
 
     if raw_date:
         try:
@@ -67,7 +92,7 @@ def menu_list(request):
         .values(
             "id",
             "menu_date",
-            "is_cancelled",
+            "status",
             "dish_name",
             "calories",
             "user_name",
@@ -81,16 +106,15 @@ def menu_list(request):
     context = {
         "entries": page_obj,
         "page_obj": page_obj,
-        "counts": MenuEntry.objects.aggregate(
-            active_entries=Count("id", filter=Q(is_cancelled=False)),
-            cancelled_entries=Count("id", filter=Q(is_cancelled=True)),
-        ),
+        "counts": status_counts(),
         "dishes": Dish.objects.order_by("name"),
         "users": User.objects.order_by("name"),
         "date_value": raw_date,
         "selected_dish": dish_id,
         "selected_user": user_id,
         "query": query,
+        "status": status,
+        "status_choices": MenuEntry.Status.choices,
         "sort": sort,
         "error": error,
     }
@@ -129,10 +153,10 @@ def day_menu(request):
             context["error"] = "Выберите пользователя."
 
     if menu_date is not None and user is not None:
-        # Несколько условий: пользователь, дата, только активные записи.
+        # Несколько условий: пользователь, дата, записи без отменённых.
         day_entries = (
             MenuEntry.objects
-            .active()
+            .in_menu()
             .for_date(menu_date)
             .filter(user=user)
             .select_related("dish")
@@ -162,10 +186,10 @@ def statistics(request):
     raw_threshold = request.GET.get("min_count", "2")
     threshold = int(raw_threshold) if raw_threshold.isdigit() else 2
 
-    active = MenuEntry.objects.active()
+    in_menu = MenuEntry.objects.in_menu()
     # Калорийность по дням: группировка по пользователю и дате.
     calories_by_day = (
-        active
+        in_menu
         .values(
             "menu_date",
             user_name=F("user__name"),
@@ -178,11 +202,7 @@ def statistics(request):
     )
 
     context = {
-        "counts": MenuEntry.objects.aggregate(
-            total_entries=Count("id"),
-            active_entries=Count("id", filter=Q(is_cancelled=False)),
-            cancelled_entries=Count("id", filter=Q(is_cancelled=True)),
-        ),
+        "counts": status_counts(),
         "calories_range": Dish.objects.aggregate(
             dishes_count=Count("id"),
             min_calories=Min("calories"),
@@ -206,7 +226,9 @@ def statistics(request):
                 dish_name=F("name"),
                 times_planned=Count(
                     "menu_entries",
-                    filter=Q(menu_entries__is_cancelled=False),
+                    filter=Q(
+                        menu_entries__status__in=MenuEntry.IN_MENU_STATUSES,
+                    ),
                 ),
             )
             .values("dish_name", "times_planned")
@@ -222,7 +244,7 @@ def statistics(request):
         ),
         "frequent": (
             Dish.objects
-            .filter(menu_entries__is_cancelled=False)
+            .filter(menu_entries__status__in=MenuEntry.IN_MENU_STATUSES)
             .annotate(times_planned=Count("menu_entries"))
             .filter(times_planned__gt=threshold)
             .values("times_planned", dish_name=F("name"))

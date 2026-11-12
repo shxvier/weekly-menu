@@ -7,7 +7,7 @@ class MenuEntryInline(admin.TabularInline):
     """Записи меню внутри карточки блюда или пользователя."""
 
     model = MenuEntry
-    fields = ("menu_date", "dish", "user", "is_cancelled")
+    fields = ("menu_date", "dish", "user", "status")
     extra = 0
     ordering = ("-menu_date",)
     autocomplete_fields = ("dish", "user")
@@ -22,12 +22,12 @@ class MenuEntryAdmin(admin.ModelAdmin):
         "dish",
         "dish_calories",
         "user",
-        "is_cancelled",
+        "status",
     )
     list_display_links = ("id",)
     # Поиск по полям связанных моделей.
     search_fields = ("dish__name", "user__name")
-    list_filter = ("menu_date", "is_cancelled", "dish__dish_type", "user")
+    list_filter = ("menu_date", "status", "dish__dish_type", "user")
     ordering = ("-menu_date", "id")
     list_per_page = 20
     readonly_fields = ("id",)
@@ -35,7 +35,7 @@ class MenuEntryAdmin(admin.ModelAdmin):
     list_select_related = ("dish", "user")
     date_hierarchy = "menu_date"
     autocomplete_fields = ("dish", "user")
-    actions = ("cancel_entries", "restore_entries")
+    actions = ("cancel_entries", "complete_entries", "restore_entries")
 
     @admin.display(description="Ккал", ordering="dish__calories")
     def dish_calories(self, obj):
@@ -51,9 +51,16 @@ class MenuEntryAdmin(admin.ModelAdmin):
             request, f"Отменено записей: {count}.", messages.SUCCESS,
         )
 
-    @admin.action(description="Вернуть в активные")
+    @admin.action(description="Отметить как выполненные")
+    def complete_entries(self, request, queryset):
+        updated = queryset.update(status=MenuEntry.Status.COMPLETED)
+        self.message_user(
+            request, f"Выполнено записей: {updated}.", messages.SUCCESS,
+        )
+
+    @admin.action(description="Вернуть в запланированные")
     def restore_entries(self, request, queryset):
-        updated = queryset.update(is_cancelled=False)
+        updated = queryset.update(status=MenuEntry.Status.ACTIVE)
         self.message_user(
             request, f"Возвращено записей: {updated}.", messages.SUCCESS,
         )
