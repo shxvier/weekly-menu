@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if dish %}Редактирование: {{ dish_name }}{% else %}Новое блюдо{% endif %} – Меню на неделю
+{% endblock %}
+
+{% block content %}
+    {% if dish %}
+        <h1>Редактирование блюда «{{ dish_name }}»</h1>
+    {% else %}
+        <h1>Новое блюдо</h1>
+    {% endif %}
+
+    {# enctype="multipart/form-data" нужен, чтобы браузер передал файл. #}
+    <form method="post" enctype="multipart/form-data" class="entry-form col-md-6" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% for field in form %}
+            {% include "includes/form_field.html" with show_help=True %}
+        {% endfor %}
+
+        {% if dish %}
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+            <a href="{{ dish.get_absolute_url }}" class="btn btn-outline-secondary">Отмена</a>
+        {% else %}
+            <button type="submit" class="btn btn-primary">Добавить блюдо</button>
+            <a href="{% url 'dishes:list' %}" class="btn btn-outline-secondary">Отмена</a>
+        {% endif %}
+    </form>
+{% endblock %}

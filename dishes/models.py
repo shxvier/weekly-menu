@@ -5,6 +5,8 @@ from django.urls import reverse
 from django.utils.text import slugify
 from unidecode import unidecode
 
+from dishes.validators import validate_image_size
+
 # Порог «лёгкого» блюда, ккал на порцию.
 LIGHT_DISH_MAX_CALORIES = 300
 
@@ -57,6 +59,16 @@ class Dish(models.Model):
         choices=DISH_TYPE_CHOICES,
         default="обед",
         verbose_name="Тип блюда",
+    )
+    # Фотография блюда: файл хранится в MEDIA_ROOT/dishes/,
+    # в базе данных – только путь к нему. Поле необязательное.
+    image = models.ImageField(
+        upload_to="dishes/",
+        blank=True,
+        null=True,
+        validators=[validate_image_size],
+        verbose_name="Фотография",
+        help_text="JPG, PNG или WebP, не больше 2 МБ.",
     )
 
     class Meta:

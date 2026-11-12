@@ -1,5 +1,8 @@
 <article class="card dish-card mb-3">
     <div class="card-body">
+        {% if dish.image %}
+            <img src="{{ dish.image.url }}" alt="" class="dish-thumb float-end ms-3">
+        {% endif %}
         <h2 class="card-title h4">
             {{ dish.name|default:"Без названия" }}
         </h2>

@@ -15,6 +15,7 @@ class DishAdmin(admin.ModelAdmin):
         "calories",
         "dish_type",
         "is_light",
+        "has_image",
         "entries_in_menu",
         "site_link",
     )
@@ -25,7 +26,7 @@ class DishAdmin(admin.ModelAdmin):
     list_filter = ("dish_type", "is_light")
     ordering = ("name",)
     list_per_page = 20
-    readonly_fields = ("id", "slug", "is_light")
+    readonly_fields = ("id", "slug", "is_light", "image_preview")
     inlines = (MenuEntryInline,)
     # Ссылка «Смотреть на сайте» строится через get_absolute_url().
     view_on_site = True
@@ -50,4 +51,17 @@ class DishAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}" target="_blank">Открыть</a>',
             obj.get_absolute_url(),
+        )
+
+    @admin.display(description="Фото", boolean=True)
+    def has_image(self, obj):
+        return bool(obj.image)
+
+    @admin.display(description="Текущая фотография")
+    def image_preview(self, obj):
+        if not obj.image:
+            return "Фотография не загружена"
+        return format_html(
+            '<img src="{}" alt="" style="max-height: 160px;">',
+            obj.image.url,
         )

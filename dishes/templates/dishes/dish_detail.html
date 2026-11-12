@@ -16,6 +16,17 @@
                     {{ dish.name }}
                 </h1>
 
+                {% if dish.image %}
+                    {# image.url = MEDIA_URL + путь, сохранённый в базе. #}
+                    <img
+                        src="{{ dish.image.url }}"
+                        alt="{{ dish.name }}"
+                        class="img-fluid dish-photo mb-3"
+                    >
+                {% else %}
+                    <p class="text-muted">Фотография не загружена.</p>
+                {% endif %}
+
                 <p class="card-text">
                     <strong>ID:</strong> {{ dish.id }}
                 </p>
@@ -42,6 +53,10 @@
                         <span class="badge bg-secondary">не запланировано</span>
                     {% endif %}
                 </p>
+
+                <a href="{% url 'dishes:update' dish.slug %}" class="btn btn-warning">
+                    Редактировать
+                </a>
             </div>
         </div>
     {% else %}

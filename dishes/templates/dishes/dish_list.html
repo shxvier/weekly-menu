@@ -7,6 +7,12 @@
 {% block content %}
     <h1>Блюда</h1>
 
+    <p>
+        <a href="{% url 'dishes:create' %}" class="btn btn-success">
+            + Добавить блюдо
+        </a>
+    </p>
+
     <form method="get" class="row g-2 align-items-end mb-3">
         <div class="col-md-4">
             <label for="q" class="form-label">Название содержит</label>
