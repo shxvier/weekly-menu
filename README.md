@@ -104,16 +104,8 @@ Django-проект — `weeklymenu/`, приложения:
 неизвестных адресов подключён собственный обработчик `handler404`
 (виден при `DEBUG = False`).
 
-Запуск веб-сервера:
-
-```
-pip install -r requirements.txt
-python -m db.import_json
-python manage.py migrate
-python manage.py runserver
-```
-
-После этого сайт доступен по адресу http://127.0.0.1:8000/.
+Порядок запуска веб-сервера — в разделе «Запуск веб-приложения» ниже
+(обязательно `python manage.py migrate` до первого `runserver`).
 
 ## Модели данных и Django ORM (ПР9)
 
