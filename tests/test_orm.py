@@ -144,7 +144,8 @@ def test_pagination_links_keep_filters(client):
 
 def test_menu_bad_date(client):
     html = client.get("/menu/?date=31-31-2026").content.decode()
-    assert "Укажите корректную дату." in html
+    assert "Введите правильную дату." in html
+    assert "Проверьте введённые значения фильтров." in html
 
 
 # --- меню на день и статистика -------------------------------------------

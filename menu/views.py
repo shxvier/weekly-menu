@@ -1,11 +1,14 @@
-"""Страницы меню: данные получаются через Django ORM."""
-from datetime import datetime
-
+"""Страницы меню: данные через Django ORM, ввод – через Django Forms."""
+from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, F, Max, Min, Q, Sum
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
 from dishes.models import Dish
+from menu.forms import MenuEntryForm, MenuFilterForm
 from menu.models import MenuEntry
 from users.models import User
 from utils import parse_date
@@ -38,43 +41,39 @@ def status_counts():
 
 
 def menu_list(request):
-    """Записи меню: фильтры, поиск, сортировка, пагинация."""
-    raw_date = request.GET.get("date", "").strip()
-    dish_id = request.GET.get("dish", "").strip()
-    user_id = request.GET.get("user", "").strip()
-    query = request.GET.get("q", "").strip()
-    status = request.GET.get("status", "").strip()
-    sort = request.GET.get("sort", "date")
-    if sort not in ENTRY_SORT_FIELDS:
-        sort = "date"
+    """Записи меню: фильтры (форма MenuFilterForm), сортировка, пагинация."""
+    # Если GET-параметров нет, форма не связана с данными (is_bound
+    # = False) и ошибок при первом открытии страницы не показывает.
+    form = MenuFilterForm(request.GET or None)
+    # Форма проверяется один раз; результат используется ниже.
+    form_valid = form.is_bound and form.is_valid()
+    filters = form.cleaned_data if form_valid else {}
     error = None
+    if form.is_bound and not form_valid:
+        error = "Проверьте введённые значения фильтров."
 
-    # Статус выбирается методом менеджера; по умолчанию – записи меню
-    # без отменённых.
+    status = filters.get("status", "")
+    sort = filters.get("sort") or "date"
+
+    # Исходная выборка – через методы менеджера; по умолчанию – записи
+    # меню без отменённых.
     status_filters = {
         MenuEntry.Status.ACTIVE: MenuEntry.objects.active,
         MenuEntry.Status.COMPLETED: MenuEntry.objects.completed,
         MenuEntry.Status.CANCELLED: MenuEntry.objects.cancelled,
     }
-    if status in status_filters:
-        entries = status_filters[status]()
-    else:
-        status = ""
-        entries = MenuEntry.objects.in_menu()
+    entries = status_filters.get(status, MenuEntry.objects.in_menu)()
 
-    if raw_date:
-        try:
-            selected_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
-        except ValueError:
-            error = "Укажите корректную дату."
-        else:
-            entries = entries.for_date(selected_date)
-    # Фильтрация по внешним ключам.
-    if dish_id.isdigit():
-        entries = entries.filter(dish_id=int(dish_id))
-    if user_id.isdigit():
-        entries = entries.filter(user_id=int(user_id))
-    if query:
+    # Фильтры применяются только к проверенным значениям cleaned_data.
+    # Для dish и user форма возвращает объекты моделей (или None).
+    if filters.get("date"):
+        entries = entries.for_date(filters["date"])
+    if filters.get("dish"):
+        entries = entries.filter(dish_id=filters["dish"].pk)
+    if filters.get("user"):
+        entries = entries.filter(user_id=filters["user"].pk)
+    if filters.get("q"):
+        query = filters["q"]
         # Поиск по нескольким полям связанных моделей.
         entries = entries.filter(
             Q(dish__name__icontains=query) | Q(user__name__icontains=query)
@@ -104,21 +103,117 @@ def menu_list(request):
     page_obj = paginator.get_page(request.GET.get("page"))
 
     context = {
+        "form": form,
         "entries": page_obj,
         "page_obj": page_obj,
         "counts": status_counts(),
-        "dishes": Dish.objects.order_by("name"),
-        "users": User.objects.order_by("name"),
-        "date_value": raw_date,
-        "selected_dish": dish_id,
-        "selected_user": user_id,
-        "query": query,
         "status": status,
-        "status_choices": MenuEntry.Status.choices,
         "sort": sort,
         "error": error,
     }
     return render(request, "menu/menu_list.html", context)
+
+
+def creation_initial(params):
+    """Начальные значения формы создания записи.
+
+    По умолчанию – сегодняшняя дата. Со страницы «Меню на день» можно
+    перейти с готовыми ?dish=, ?user= и ?date=; некорректные значения
+    просто не подставляются (проверку всё равно выполнит форма).
+    """
+    initial = {"menu_date": timezone.localdate()}
+    for name in ("dish", "user"):
+        value = params.get(name, "")
+        if value.isdigit():
+            initial[name] = int(value)
+    selected_date = parse_date(params.get("date", ""))
+    if selected_date and selected_date >= initial["menu_date"]:
+        initial["menu_date"] = selected_date
+    return initial
+
+
+def is_dish_taken(cleaned_data, exclude_pk=None):
+    """Есть ли блюдо в меню пользователя на эту дату.
+
+    Учитываются записи «Запланировано» и «Выполнено» (in_menu());
+    отменённая запись блюдо не занимает. exclude_pk исключает из
+    проверки редактируемую запись, чтобы она не мешала самой себе.
+    """
+    entries = (
+        MenuEntry.objects
+        .in_menu()
+        .for_date(cleaned_data["menu_date"])
+        .filter(dish=cleaned_data["dish"], user=cleaned_data["user"])
+    )
+    if exclude_pk is not None:
+        entries = entries.exclude(pk=exclude_pk)
+    return entries.exists()
+
+
+TAKEN_ERROR = "Это блюдо уже есть в меню пользователя на выбранную дату."
+
+
+def menu_create(request):
+    """Создание записи меню: GET – пустая форма, POST – сохранение."""
+    if request.method == "POST":
+        # Связанная форма: данные из запроса проходят валидацию.
+        form = MenuEntryForm(request.POST)
+        if form.is_valid():
+            if is_dish_taken(form.cleaned_data):
+                # Общая ошибка формы, не связанная с одним полем.
+                form.add_error(None, TAKEN_ERROR)
+            else:
+                entry = form.save()
+                messages.success(request, "Запись добавлена в меню.")
+                return redirect("menu:detail", entry_id=entry.pk)
+    else:
+        form = MenuEntryForm(initial=creation_initial(request.GET))
+    return render(request, "menu/menu_form.html", {"form": form})
+
+
+def menu_update(request, entry_id):
+    """Редактирование записи меню (только со статусом «Запланировано»)."""
+    # Отменённую или выполненную запись по прямому адресу изменить
+    # нельзя: get_object_or_404() вернёт 404.
+    entry = get_object_or_404(MenuEntry.objects.active(), pk=entry_id)
+    if request.method == "POST":
+        # instance=entry: форма изменяет существующую запись,
+        # а не создаёт новую.
+        form = MenuEntryForm(request.POST, instance=entry)
+        if form.is_valid():
+            if is_dish_taken(form.cleaned_data, exclude_pk=entry.pk):
+                form.add_error(None, TAKEN_ERROR)
+            else:
+                form.save()
+                messages.success(request, "Изменения сохранены.")
+                return redirect("menu:detail", entry_id=entry.pk)
+    else:
+        form = MenuEntryForm(instance=entry)
+    context = {"form": form, "entry_id": entry.pk}
+    return render(request, "menu/menu_form.html", context)
+
+
+@require_POST
+def menu_cancel(request, entry_id):
+    """Отмена записи меню: статус меняется на «Отменено», запись остаётся.
+
+    Только POST-запрос с CSRF-токеном; GET вернёт 405.
+    """
+    entry = get_object_or_404(MenuEntry.objects.active(), pk=entry_id)
+    entry.cancel()
+    messages.success(
+        request, f"Запись №{entry.pk} «{entry.dish}» отменена.",
+    )
+    # Возврат на ту же страницу списка (с фильтрами), если адрес
+    # безопасный; иначе – к списку меню.
+    next_url = request.POST.get("next", "")
+    if url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("menu:list")
 
 
 def menu_detail(request, entry_id):

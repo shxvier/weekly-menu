@@ -77,6 +77,12 @@
         <h3 class="h5">Можно добавить</h3>
         {% for dish in free_dishes %}
             {% include "dishes/includes/dish_card.html" %}
+            <p class="mb-3">
+                <a class="btn btn-sm btn-outline-success"
+                   href="{% url 'menu:create' %}?dish={{ dish.pk }}&amp;user={{ selected_user.pk }}&amp;date={{ date_value }}">
+                    Добавить в меню
+                </a>
+            </p>
         {% empty %}
             <p>Все блюда уже в меню на этот день.</p>
         {% endfor %}

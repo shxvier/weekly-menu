@@ -14,59 +14,17 @@
         <a href="{% url 'menu:day' %}">Посмотреть меню на день</a>
     </p>
 
-    <form method="get" class="row g-2 align-items-end mb-3">
-        <div class="col-md-2">
-            <label for="date" class="form-label">Дата</label>
-            <input type="date" id="date" name="date" class="form-control"
-                   value="{{ date_value }}">
-        </div>
-        <div class="col-md-3">
-            <label for="dish" class="form-label">Блюдо</label>
-            <select id="dish" name="dish" class="form-select">
-                <option value="">Все блюда</option>
-                {% for dish in dishes %}
-                    <option value="{{ dish.pk }}"
-                        {% if selected_dish == dish.pk|stringformat:"s" %}selected{% endif %}>
-                        {{ dish.name }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label for="user" class="form-label">Пользователь</label>
-            <select id="user" name="user" class="form-select">
-                <option value="">Все</option>
-                {% for user in users %}
-                    <option value="{{ user.pk }}"
-                        {% if selected_user == user.pk|stringformat:"s" %}selected{% endif %}>
-                        {{ user.name }}
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label for="status" class="form-label">Статус</label>
-            <select id="status" name="status" class="form-select">
-                <option value="">В меню (без отменённых)</option>
-                {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label for="q" class="form-label">Поиск</label>
-            <input type="search" id="q" name="q" class="form-control"
-                   placeholder="блюдо или имя" value="{{ query }}">
-        </div>
-        <div class="col-md-2">
-            <label for="sort" class="form-label">Сортировать по</label>
-            <select id="sort" name="sort" class="form-select">
-                <option value="date" {% if sort == "date" %}selected{% endif %}>дате</option>
-                <option value="dish" {% if sort == "dish" %}selected{% endif %}>блюду</option>
-                <option value="user" {% if sort == "user" %}selected{% endif %}>пользователю</option>
-                <option value="calories" {% if sort == "calories" %}selected{% endif %}>калорийности</option>
-            </select>
-        </div>
+    <p>
+        <a href="{% url 'menu:create' %}" class="btn btn-success">
+            + Добавить запись
+        </a>
+    </p>
+
+    {# Форма фильтрации: значения передаются GET-параметрами. #}
+    <form method="get" class="menu-filter-form row g-2 align-items-start mb-3" novalidate>
+        {% for field in form %}
+            {% include "includes/form_field.html" with field_class="col-md-2" %}
+        {% endfor %}
         <div class="col-md-12">
             <button type="submit" class="btn btn-primary">Найти</button>
             <a href="{% url 'menu:list' %}" class="btn btn-outline-secondary">Сбросить</a>
@@ -74,18 +32,23 @@
     </form>
 
     {% if error %}
-        <p class="text-danger">{{ error }}</p>
+        <div class="alert alert-danger">{{ error }}</div>
     {% endif %}
 
     <ul class="list-group mb-3">
         {% for entry in entries %}
-            <li class="list-group-item d-flex justify-content-between">
+            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <a href="{% url 'menu:detail' entry.id %}">
                     №{{ entry.id }}: {{ entry.menu_date|date:"d.m.Y" }} –
                     {{ entry.dish_name }}, {{ entry.calories }} ккал
                     ({{ entry.user_name }})
                 </a>
-                {% include "menu/includes/menu_status.html" %}
+                <span class="d-flex align-items-center gap-2">
+                    {% include "menu/includes/menu_status.html" %}
+                    {% if entry.status == MenuStatus.ACTIVE %}
+                        {% include "menu/includes/entry_actions.html" with entry_id=entry.id %}
+                    {% endif %}
+                </span>
             </li>
         {% empty %}
             <li class="list-group-item">

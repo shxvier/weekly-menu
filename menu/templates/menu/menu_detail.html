@@ -37,6 +37,10 @@
                     <strong>Статус:</strong>
                     {% include "menu/includes/menu_status.html" %}
                 </p>
+
+                {% if entry.status == MenuStatus.ACTIVE %}
+                    {% include "menu/includes/entry_actions.html" with entry_id=entry.id %}
+                {% endif %}
             </div>
         </div>
     {% else %}

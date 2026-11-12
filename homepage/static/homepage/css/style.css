@@ -40,3 +40,28 @@ body {
     font-weight: 600;
     font-size: 1.25rem;
 }
+
+/* Формы фильтрации и ввода (ПР11) */
+.menu-filter-form label,
+.entry-form label {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.form-error {
+    color: #b02a37;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.dish-photo {
+    max-width: 320px;
+    border-radius: 8px;
+}
+
+.dish-thumb {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 6px;
+}

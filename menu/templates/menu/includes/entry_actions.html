@@ -1,0 +1,13 @@
+{# Кнопки для записи со статусом «Запланировано». #}
+<a href="{% url 'menu:update' entry_id %}" class="btn btn-sm btn-warning">
+    Редактировать
+</a>
+{# Отмена изменяет данные, поэтому отправляется POST-формой. #}
+<form method="post" action="{% url 'menu:cancel' entry_id %}" class="d-inline">
+    {# Токен защищает POST-запрос от CSRF-атак. #}
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-sm btn-danger">
+        Отменить
+    </button>
+</form>
