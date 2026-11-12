@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.db.models import Count, Q
+from django.utils.html import format_html
 
 from dishes.models import Dish
 from menu.admin import MenuEntryInline
@@ -13,17 +14,21 @@ class DishAdmin(admin.ModelAdmin):
         "name",
         "calories",
         "dish_type",
+        "is_light",
         "entries_in_menu",
+        "site_link",
     )
     list_display_links = ("name",)
     # Калорийность можно править прямо в списке.
     list_editable = ("calories",)
     search_fields = ("name",)
-    list_filter = ("dish_type",)
+    list_filter = ("dish_type", "is_light")
     ordering = ("name",)
     list_per_page = 20
-    readonly_fields = ("id",)
+    readonly_fields = ("id", "slug", "is_light")
     inlines = (MenuEntryInline,)
+    # Ссылка «Смотреть на сайте» строится через get_absolute_url().
+    view_on_site = True
 
     def get_queryset(self, request):
         # Число записей в меню считается одним запросом для всех строк.
@@ -39,3 +44,10 @@ class DishAdmin(admin.ModelAdmin):
     @admin.display(description="Записей в меню", ordering="in_menu_count")
     def entries_in_menu(self, obj):
         return obj.in_menu_count
+
+    @admin.display(description="Страница на сайте")
+    def site_link(self, obj):
+        return format_html(
+            '<a href="{}" target="_blank">Открыть</a>',
+            obj.get_absolute_url(),
+        )

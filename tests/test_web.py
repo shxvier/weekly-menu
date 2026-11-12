@@ -5,7 +5,8 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.mark.parametrize("url", [
-    "/", "/dishes/", "/dishes/1/", "/menu/", "/menu/1/",
+    "/", "/dishes/", "/dishes/ovsianaia-kasha-s-iagodami-1/",
+    "/menu/", "/menu/1/",
     "/menu/day/", "/menu/statistics/",
 ])
 def test_pages_open(client, url):
@@ -34,7 +35,7 @@ def test_detail_pages_show_related_objects(client):
 
 
 def test_missing_dish_gives_404(client):
-    response = client.get("/dishes/999/")
+    response = client.get("/dishes/no-such-dish-999/")
     assert response.status_code == 404
     assert "страница не найдена" in response.content.decode()
 
@@ -83,7 +84,7 @@ def test_dish_filter_is_parameterized(client):
 
 
 def test_dish_detail_counts_plans(client):
-    html = client.get("/dishes/5/").content.decode()
+    html = client.get("/dishes/grechka-s-indeikoi-5/").content.decode()
     assert "Гречка с индейкой" in html
     assert '<span class="badge bg-success">3</span>' in html
 

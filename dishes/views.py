@@ -47,9 +47,9 @@ def dish_list(request):
     return render(request, "dishes/dish_list.html", context)
 
 
-def dish_detail(request, dish_id):
-    """Карточка блюда и число его появлений в меню."""
-    dish = get_object_or_404(Dish, pk=dish_id)
+def dish_detail(request, slug):
+    """Карточка блюда (поиск по slug) и число его появлений в меню."""
+    dish = get_object_or_404(Dish, slug=slug)
     # Обратная связь Dish -> MenuEntry через related_name.
     times_planned = dish.menu_entries.in_menu().count()
     context = {

@@ -18,7 +18,7 @@
 
                 <p class="card-text">
                     <strong>Блюдо:</strong>
-                    <a href="{% url 'dishes:detail' entry.dish.pk %}">
+                    <a href="{{ entry.dish.get_absolute_url }}">
                         {{ entry.dish.name }}
                     </a>
                     ({{ entry.dish.calories }} ккал, {{ entry.dish.get_dish_type_display|lower }})

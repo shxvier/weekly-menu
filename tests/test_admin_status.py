@@ -116,3 +116,71 @@ def test_admin_requires_login(client):
     response = client.get("/admin/menu/menuentry/")
     assert response.status_code == 302
     assert "/admin/login/" in response["Location"]
+
+
+# --- GeneratedField, slug, get_absolute_url, контекстный процессор --------
+
+def test_generated_field_is_computed_by_database():
+    from dishes.models import Dish
+
+    dish = Dish.objects.get(pk=3)
+    assert dish.calories == 250 and dish.is_light is True
+    dish.calories = 350
+    dish.save()
+    dish.refresh_from_db()
+    assert dish.is_light is False
+    assert Dish.objects.filter(is_light=True).count() == 3
+
+
+def test_existing_slugs_are_transliterated_and_unique():
+    from dishes.models import Dish
+
+    slugs = list(Dish.objects.values_list("slug", flat=True))
+    assert len(slugs) == len(set(slugs)) == 9
+    assert Dish.objects.get(pk=3).slug == "grecheskii-salat-3"
+    assert all(s.isascii() for s in slugs)
+
+
+def test_new_dish_gets_slug_and_keeps_it():
+    from dishes.models import Dish
+
+    dish = Dish.objects.create(name="Сырники со сметаной", calories=410)
+    assert dish.slug == f"syrniki-so-smetanoi-{dish.pk}"
+    twin = Dish.objects.create(name="Сырники со сметаной", calories=400)
+    assert twin.slug != dish.slug
+    dish.name = "Сырники"
+    dish.save()
+    dish.refresh_from_db()
+    assert dish.slug == f"syrniki-so-smetanoi-{dish.pk}"
+
+
+def test_get_absolute_url_and_detail_by_slug(client):
+    from dishes.models import Dish
+
+    dish = Dish.objects.get(pk=5)
+    assert dish.get_absolute_url() == "/dishes/grechka-s-indeikoi-5/"
+    response = client.get(dish.get_absolute_url())
+    assert response.status_code == 200
+    assert response.context["dish"] == dish
+    assert client.get("/dishes/5/").status_code == 404
+    html = client.get("/dishes/").content.decode()
+    assert 'href="/dishes/grechka-s-indeikoi-5/"' in html
+
+
+def test_admin_view_on_site_link(admin_client):
+    html = admin_client.get("/admin/dishes/dish/").content.decode()
+    assert 'href="/dishes/grecheskii-salat-3/"' in html
+    html = admin_client.get("/admin/dishes/dish/3/change/").content.decode()
+    assert "/admin/r/" in html
+
+
+def test_context_processor_on_every_page(client):
+    from dishes.models import Dish
+
+    for url in ("/", "/dishes/", "/menu/", "/menu/statistics/"):
+        response = client.get(url)
+        assert response.context["site_name"] == "Меню на неделю"
+        assert response.context["dishes_count"] == 9
+        assert "Блюда (9)" in response.content.decode()
+    Dish.objects.create(name="Новое блюдо", calories=100)
+    assert "Блюда (10)" in client.get("/").content.decode()

@@ -6,10 +6,13 @@
 
         <p class="card-text">
             {{ dish.calories }} ккал, {{ dish.dish_type|capfirst }}
+            {% if dish.is_light %}
+                <span class="badge bg-success">лёгкое</span>
+            {% endif %}
         </p>
 
         <a
-            href="{% url 'dishes:detail' dish.id %}"
+            href="{{ dish.get_absolute_url }}"
             class="btn btn-primary"
         >
             Подробнее

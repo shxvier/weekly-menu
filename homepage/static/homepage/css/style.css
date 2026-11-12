@@ -35,3 +35,8 @@ body {
 .stat-card {
     border-left: 4px solid #2e8b57;
 }
+
+.site-name {
+    font-weight: 600;
+    font-size: 1.25rem;
+}

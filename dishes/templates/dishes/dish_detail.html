@@ -30,7 +30,12 @@
                 </p>
 
                 <p class="card-text">
-                    Запланировано в активном меню:
+                    <strong>Лёгкое блюдо (до 300 ккал):</strong>
+                    {{ dish.is_light|yesno:"да,нет" }}
+                </p>
+
+                <p class="card-text">
+                    Записей в меню:
                     {% if times_planned %}
                         <span class="badge bg-success">{{ times_planned }}</span>
                     {% else %}
