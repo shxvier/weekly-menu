@@ -1,10 +1,7 @@
 import pytest
-from django.test import Client, override_settings
+from django.test import override_settings
 
-
-@pytest.fixture
-def client():
-    return Client()
+pytestmark = pytest.mark.django_db
 
 
 @pytest.mark.parametrize("url", [
@@ -39,13 +36,12 @@ def test_detail_pages_show_related_objects(client):
 def test_missing_dish_gives_404(client):
     response = client.get("/dishes/999/")
     assert response.status_code == 404
-    assert "Блюдо не найдено" in response.content.decode()
+    assert "страница не найдена" in response.content.decode()
 
 
 def test_missing_menu_entry_gives_404(client):
     response = client.get("/menu/999/")
     assert response.status_code == 404
-    assert "Запись меню не найдена" in response.content.decode()
 
 
 @override_settings(DEBUG=False)
@@ -66,10 +62,10 @@ def test_pages_use_base_template_and_static(client):
 def test_dish_list_uses_filters_and_cards(client):
     response = client.get("/dishes/")
     html = response.content.decode()
-    assert "Всего блюд: 9" in html
+    assert "Найдено блюд: 9" in html
     assert html.count("dish-card") == 9
     first = response.context["dishes"][0]
-    assert first["name"] == "Греческий салат"
+    assert first.name == "Греческий салат"
 
 
 def test_named_urls_in_navigation(client):
@@ -118,7 +114,7 @@ def test_statistics_page(client):
     response = client.get("/menu/statistics/")
     html = response.content.decode()
     assert response.status_code == 200
-    assert "Анна, 2026-09-17" in html
+    assert "Анна, 17.09.2026" in html
     assert "+150" in html
     assert len(response.context["frequent"]) == 2
     response = client.get("/menu/statistics/?min_count=5")

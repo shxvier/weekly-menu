@@ -8,7 +8,17 @@
     <h1>Блюда</h1>
 
     <form method="get" class="row g-2 align-items-end mb-3">
-        <div class="col-auto">
+        <div class="col-md-4">
+            <label for="q" class="form-label">Название содержит</label>
+            <input
+                type="search"
+                id="q"
+                name="q"
+                class="form-control"
+                value="{{ query }}"
+            >
+        </div>
+        <div class="col-md-3">
             <label for="max_calories" class="form-label">
                 Не больше, ккал
             </label>
@@ -21,13 +31,23 @@
                 value="{{ max_calories|default_if_none:'' }}"
             >
         </div>
-        <div class="col-auto">
-            <button type="submit" class="btn btn-primary">Подобрать</button>
-            {% if max_calories %}
-                <a href="{% url 'dishes:list' %}" class="btn btn-link">
-                    Сбросить
-                </a>
-            {% endif %}
+        <div class="col-md-3">
+            <label for="sort" class="form-label">Сортировать</label>
+            <select id="sort" name="sort" class="form-select">
+                <option value="name" {% if sort == "name" %}selected{% endif %}>
+                    по названию
+                </option>
+                <option value="calories" {% if sort == "calories" %}selected{% endif %}>
+                    сначала лёгкие
+                </option>
+                <option value="-calories" {% if sort == "-calories" %}selected{% endif %}>
+                    сначала калорийные
+                </option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary">Найти</button>
+            <a href="{% url 'dishes:list' %}" class="btn btn-link">Сбросить</a>
         </div>
     </form>
 
@@ -39,7 +59,7 @@
         {% if max_calories %}
             Блюд не больше {{ max_calories }} ккал: {{ dishes|length }}
         {% else %}
-            Всего блюд: {{ dishes|length }}
+            Найдено блюд: {{ dishes|length }}
         {% endif %}
     </p>
 

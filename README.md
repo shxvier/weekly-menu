@@ -37,8 +37,9 @@
 
 ## Веб-интерфейс (Django)
 
-Используется фреймворк Django 5.2. С ПР7 веб-слой получает данные из
-базы SQLite SQL-запросами (модуль `sqlite3`, без Django ORM). Страницы строятся
+Используется фреймворк Django 5.2. С ПР9 веб-слой получает данные через
+Django ORM из базы Django `db.sqlite3` (модели в `models.py` приложений,
+структура базы управляется миграциями). Страницы строятся
 системой шаблонов Django (DTL): представления только готовят данные
 и передают их в шаблон через `render(request, шаблон, context)`.
 Функция `page()` из ПР5 удалена — HTML в Python больше не собирается.
@@ -47,20 +48,22 @@ Django-проект — `weeklymenu/`, приложения:
 
 - `homepage` — главная страница и страница ошибки 404;
 - `dishes` — страницы блюд;
-- `menu` — страницы записей меню.
+- `menu` — страницы записей меню;
+- `users` — модель пользователя (страниц нет).
 
 | URL | View | Страница |
 |-----|------|----------|
 | `/` | `homepage.views.index` | главная, навигация |
-| `/dishes/` | `dishes.views.dish_list` | список блюд |
-| `/dishes/<id>/` | `dishes.views.dish_detail` | карточка блюда, статус на сегодня |
-| `/menu/` | `menu.views.menu_list` | список записей меню со статусами |
+| `/dishes/` | `dishes.views.dish_list` | список блюд: поиск по названию, лимит калорий, сортировка |
+| `/dishes/<id>/` | `dishes.views.dish_detail` | карточка блюда, сколько раз оно в меню |
+| `/menu/` | `menu.views.menu_list` | активные записи меню: фильтр по дате, блюду, пользователю, поиск, сортировка, пагинация |
 | `/menu/<id>/` | `menu.views.menu_detail` | карточка записи меню |
 | `/menu/day/?user=<id>&date=<дата>` | `menu.views.day_menu` | меню пользователя на день, калорийность, блюда, которые можно добавить |
 | `/menu/statistics/` | `menu.views.statistics` | статистика по меню и блюдам |
 
-На странице `/dishes/` есть форма подбора блюд по лимиту калорий
-(`?max_calories=300`).
+Параметры списка меню: `?date=ГГГГ-ММ-ДД&dish=<id>&user=<id>&q=<текст>&sort=date|dish|user|calories&page=<N>`
+(по 5 записей на страницу). Параметры списка блюд:
+`?q=<текст>&max_calories=<N>&sort=name|calories|-calories`.
 
 ### Шаблоны
 
@@ -104,10 +107,85 @@ python manage.py runserver
 
 После этого сайт доступен по адресу http://127.0.0.1:8000/.
 
+## Модели данных и Django ORM (ПР9)
+
+| Модель | Приложение | Поля | Связи |
+|--------|------------|------|-------|
+| `Dish` — блюдо | `dishes/models.py` | `name` (CharField 200), `calories` (PositiveIntegerField ≥ 1), `dish_type` (CharField с choices, по умолчанию «обед») | — |
+| `User` — пользователь | `users/models.py` | `name` (CharField 100), `goal` (CharField 200, `blank=True`), `daily_limit` (PositiveIntegerField ≥ 1) | — |
+| `MenuEntry` — запись меню | `menu/models.py` | `dish`, `user` (ForeignKey), `menu_date` (DateField), `is_cancelled` (BooleanField, `default=False`) | `dish` → `Dish`, `user` → `User`; `on_delete=PROTECT`, `related_name="menu_entries"` |
+
+Первичные ключи `id` Django создаёт автоматически (`BigAutoField`).
+`PROTECT` запрещает удалить блюдо или пользователя, пока на них
+ссылаются записи меню, — история меню сохраняется. Обратные связи:
+`dish.menu_entries.all()`, `user.menu_entries.all()`. Метод
+`MenuEntry.cancel()` отменяет запись (`save(update_fields=[...])`).
+Модель `users.User` — пользователь предметной области, а не встроенная
+модель аутентификации Django.
+
+### Миграции и перенос данных из базы ПР7
+
+Стратегия: таблицы создаются миграциями Django в базе `db.sqlite3`,
+база ПР7 `data/weekly_menu.sqlite` остаётся неизменным источником, и
+данные переносятся в новые таблицы с сохранением идентификаторов.
+
+```
+python manage.py migrate                 # создать таблицы
+python db/inspect_source_db.py           # структура и число записей в базе ПР7
+python db/import_sqlite_to_orm.py        # перенос: блюда, пользователи, записи меню
+```
+
+Скрипт переноса работает в одной транзакции (`transaction.atomic()`),
+использует `update_or_create(pk=...)` (повторный запуск не создаёт
+дублей), переводит строки дат в `date`, а `0/1` — в `bool`. Переносятся
+9 блюд, 2 пользователя и 17 записей меню. Если базы ПР7 нет, её можно
+собрать из JSON: `python -m db.import_json`.
+
+### ORM-запросы проекта
+
+| № | Где | Выражение | Вид |
+|---|-----|-----------|-----|
+| 1 | список блюд | `Dish.objects.all()` | получение набора |
+| 2 | список блюд | `.filter(name__icontains=q)` | поиск по строковому полю |
+| 3 | список блюд | `.filter(calories__lte=N)` | фильтр по одному условию |
+| 4 | список блюд | `.order_by(*DISH_SORT_FIELDS[sort])` | сортировка по одному и нескольким полям |
+| 5 | карточка блюда | `get_object_or_404(Dish, pk=dish_id)` | один объект, 404 |
+| 6 | карточка блюда | `dish.menu_entries.filter(is_cancelled=False).count()` | обратная связь, подсчёт |
+| 7 | список меню | `MenuEntry.objects.filter(is_cancelled=False)` + `.filter(menu_date=...)`, `.filter(dish_id=...)`, `.filter(user_id=...)` | фильтр по нескольким условиям и внешним ключам |
+| 8 | список меню | `.filter(Q(dish__name__icontains=q) \| Q(user__name__icontains=q))` | поиск по нескольким полям связанных моделей |
+| 9 | список меню | `.annotate(dish_name=F("dish__name"), ...).order_by(...).values(...)` | поля связанных моделей, сортировка по связанному полю, сокращённый набор полей |
+| 10 | список меню | `Paginator(entries, 5).get_page(page)` | постраничный вывод |
+| 11 | список меню, статистика | `MenuEntry.objects.aggregate(Count("id", filter=Q(...)))` | сводный показатель |
+| 12 | запись меню | `get_object_or_404(MenuEntry.objects.select_related("dish", "user"), pk=...)` | связанные объекты одним запросом |
+| 13 | меню на день | `.filter(user=user, menu_date=d, is_cancelled=False).select_related("dish")` | несколько условий, `select_related` |
+| 14 | меню на день | `day_entries.aggregate(total=Sum("dish__calories"))` | сумма по связанному полю |
+| 15 | меню на день | `Dish.objects.exclude(pk__in=day_entries.values_list("dish_id", flat=True))` | исключение `exclude()` |
+| 16 | статистика | `Dish.objects.aggregate(Count, Min, Max, Avg)` | агрегирование |
+| 17 | статистика | `Dish.objects.values("dish_type").annotate(Count, Avg)` | группировка |
+| 18 | статистика | `Dish.objects.annotate(times_planned=Count("menu_entries", filter=Q(...)))` | аннотирование, блюда без записей сохраняются (0) |
+| 19 | статистика | `active.values("menu_date", user_name=F(...)).annotate(Count, Sum)` | группировка по пользователю и дате |
+| 20 | статистика | `.filter(day_calories__gt=F("daily_limit")).annotate(excess=...)` | условие на агрегат (HAVING) |
+| 21 | статистика | `Dish.objects.filter(menu_entries__is_cancelled=False).annotate(Count).filter(times_planned__gt=N)` | фильтр по связанной модели + HAVING |
+
+Поле сортировки выбирается только из словарей `DISH_SORT_FIELDS` и
+`ENTRY_SORT_FIELDS`, неизвестное значение заменяется сортировкой по
+умолчанию — пользовательский ввод не передаётся в `order_by()`.
+Отменённые записи не учитываются ни в списке, ни в меню на день, ни в
+статистике.
+
+Поиск по кириллице. Встроенный `LIKE` SQLite не учитывает регистр только
+для латиницы, поэтому `homepage/sqlite_unicode.py` при подключении к базе
+регистрирует Unicode-версию функции `like()` (сигнал `connection_created`).
+Код запросов остаётся стандартным: `name__icontains="овс"` находит
+«Овсяная каша».
+
 ## База данных (SQLite, ПР7)
 
-Файл базы — `data/weekly_menu.sqlite`. JSON-файлы остаются исходными
-данными консольной версии и источником для импорта.
+Файл базы — `data/weekly_menu.sqlite`. С ПР9 это исходная база для
+переноса в Django ORM; веб-приложение с ней больше не работает. Файлы
+`sql/` и `db/database.py` сохранены как реализация ПР7 (на них
+продолжают работать тесты SQL-слоя). JSON-файлы — данные консольной
+версии и источник для `db/import_json.py`.
 
 ### Таблицы
 
@@ -162,72 +240,77 @@ python manage.py runserver
 python -m db.import_json
 ```
 
-### SQL в веб-приложении
-
-Представления `dishes/views.py` и `menu/views.py` выполняют запросы
-из `sql/queries.sql`; значения от пользователя (лимит калорий, дата,
-пользователь, порог частоты) передаются только параметрами `?`, без
-f-строк. Строки результата — `sqlite3.Row`, поэтому в шаблонах поля
-доступны по имени: `{{ dish.name }}`, `{{ entry.dish_name }}`.
+В ПР7 представления выполняли эти запросы через `sqlite3`; в ПР9 они
+заменены ORM-выражениями (см. таблицу выше).
 
 ## Структура проекта
 
 - `manage.py` — управление Django-проектом;
 - `weeklymenu/` — настройки и корневые маршруты Django;
-- `homepage/`, `dishes/`, `menu/` — Django-приложения (views,
-  urls, шаблоны; статика — в `homepage/static/`);
+- `homepage/` — главная, 404, Unicode-`LIKE` для SQLite, общая статика;
+- `dishes/` — модель `Dish`, представления и шаблоны блюд;
+- `menu/` — модель `MenuEntry`, представления и шаблоны меню;
+- `users/` — модель `User`;
+- `*/migrations/` — миграции моделей (хранятся в Git);
 - `templates/` — общие шаблоны проекта;
-- `db/` — подключение к SQLite и импорт из JSON;
-- `sql/` — схема БД и SQL-запросы;
-- `main.py` — точка запуска консольного меню;
-- `models/` — пакет предметной области:
-  - `dishes.py` — класс `Dish` и функции работы с блюдами;
-  - `users.py` — класс `User` и функции работы с пользователями;
-  - `menu.py` — класс `MenuEntry` и функции работы с меню;
-- `storage.py` — сохранение и загрузка данных (JSON);
-- `utils.py` — вспомогательные функции (даты, безопасный ввод);
-- `data/` — JSON-файлы данных (`dishes.json`, `users.json`,
-  `menu.json`);
-- `tests/` — автоматизированные тесты.
+- `db/` — скрипты: `import_json.py` (JSON → база ПР7),
+  `inspect_source_db.py`, `import_sqlite_to_orm.py` (база ПР7 → ORM),
+  `database.py` (подключение `sqlite3`, ПР7);
+- `sql/` — схема и SQL-запросы ПР7;
+- `main.py`, `models/`, `storage.py`, `utils.py` — консольная версия
+  (ПР2–ПР3, данные в JSON);
+- `data/` — JSON-файлы и исходная база ПР7 `weekly_menu.sqlite`;
+- `tests/` — автоматизированные тесты (pytest, pytest-django).
+
+Локальная база Django `db.sqlite3` в репозиторий не входит
+(`.gitignore`): после клонирования она создаётся миграциями и
+заполняется скриптом переноса.
 
 ## Требования
 
-- Python 3.x;
-- pytest;
+- Python 3.x, Django 5.2;
+- pytest, pytest-django;
 - flake8.
 
-Установка зависимостей:
+## Запуск веб-приложения
 
 ```
+git clone https://github.com/shxvier/weekly-menu
+cd weekly-menu
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
+python manage.py migrate
+python db/import_sqlite_to_orm.py
+python manage.py runserver
 ```
 
-## Запуск программы
+Сайт: http://127.0.0.1:8000/.
+
+## Запуск консольной версии
 
 ```
 python main.py
 ```
 
-## Запуск тестов
+## Проверки
 
 ```
+python manage.py check
+python manage.py showmigrations
+python manage.py makemigrations --check
 pytest -v
-```
-
-## Проверка качества кода
-
-```
 flake8 . --extend-exclude=venv
 ```
 
 ## Текущий этап разработки
 
-На ПР7 данные проекта перенесены из JSON в SQLite: база
-`data/weekly_menu.sqlite` создаётся по `sql/schema.sql` и заполняется
-скриптом `db/import_json.py`, запросы хранятся в `sql/queries.sql`,
-Django-представления получают данные из SQLite и отображают их на
-страницах «Блюда», «Меню», «Меню на день» и «Статистика».
-Консольная версия по-прежнему работает с JSON.
+На ПР9 слой данных переведён с SQL-запросов через `sqlite3` на Django
+ORM: описаны модели `Dish`, `User`, `MenuEntry` со связями, структура
+базы создаётся миграциями, данные перенесены из базы ПР7 без потери
+связей, все страницы получают данные через ORM. Список меню получил
+фильтрацию, поиск, сортировку и постраничный вывод.
 
-На следующих практических работах база будет подключена к Django
-через Django ORM.
+## Автор
+
+Журавлев Алексей Игоревич, ЭФБО-12-24.

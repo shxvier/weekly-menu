@@ -63,9 +63,9 @@
             {% for entry in entries %}
                 <li class="list-group-item d-flex justify-content-between">
                     <a href="{% url 'menu:detail' entry.id %}">
-                        {{ entry.dish_name }} ({{ entry.dish_type }})
+                        {{ entry.dish.name }} ({{ entry.dish.dish_type }})
                     </a>
-                    <span>{{ entry.calories }} ккал</span>
+                    <span>{{ entry.dish.calories }} ккал</span>
                 </li>
             {% empty %}
                 <li class="list-group-item">

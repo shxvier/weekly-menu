@@ -13,11 +13,67 @@
         <a href="{% url 'menu:day' %}">Посмотреть меню на день</a>
     </p>
 
-    <ul class="list-group">
+    <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-md-2">
+            <label for="date" class="form-label">Дата</label>
+            <input type="date" id="date" name="date" class="form-control"
+                   value="{{ date_value }}">
+        </div>
+        <div class="col-md-3">
+            <label for="dish" class="form-label">Блюдо</label>
+            <select id="dish" name="dish" class="form-select">
+                <option value="">Все блюда</option>
+                {% for dish in dishes %}
+                    <option value="{{ dish.pk }}"
+                        {% if selected_dish == dish.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ dish.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="user" class="form-label">Пользователь</label>
+            <select id="user" name="user" class="form-select">
+                <option value="">Все</option>
+                {% for user in users %}
+                    <option value="{{ user.pk }}"
+                        {% if selected_user == user.pk|stringformat:"s" %}selected{% endif %}>
+                        {{ user.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label for="q" class="form-label">Поиск</label>
+            <input type="search" id="q" name="q" class="form-control"
+                   placeholder="блюдо или имя" value="{{ query }}">
+        </div>
+        <div class="col-md-2">
+            <label for="sort" class="form-label">Сортировать по</label>
+            <select id="sort" name="sort" class="form-select">
+                <option value="date" {% if sort == "date" %}selected{% endif %}>дате</option>
+                <option value="dish" {% if sort == "dish" %}selected{% endif %}>блюду</option>
+                <option value="user" {% if sort == "user" %}selected{% endif %}>пользователю</option>
+                <option value="calories" {% if sort == "calories" %}selected{% endif %}>калорийности</option>
+            </select>
+        </div>
+        <div class="col-md-1">
+            <button type="submit" class="btn btn-primary">Найти</button>
+        </div>
+        <div class="col-12">
+            <a href="{% url 'menu:list' %}" class="btn btn-outline-secondary btn-sm">Сбросить</a>
+        </div>
+    </form>
+
+    {% if error %}
+        <p class="text-danger">{{ error }}</p>
+    {% endif %}
+
+    <ul class="list-group mb-3">
         {% for entry in entries %}
             <li class="list-group-item d-flex justify-content-between">
                 <a href="{% url 'menu:detail' entry.id %}">
-                    №{{ entry.id }}: {{ entry.menu_date }} –
+                    №{{ entry.id }}: {{ entry.menu_date|date:"d.m.Y" }} –
                     {{ entry.dish_name }}, {{ entry.calories }} ккал
                     ({{ entry.user_name }})
                 </a>
@@ -29,4 +85,38 @@
             </li>
         {% endfor %}
     </ul>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+        <nav aria-label="Навигация по страницам">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{% querystring page=page_obj.previous_page_number %}">Назад</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">Назад</span></li>
+                {% endif %}
+                {% for page_number in page_obj.paginator.page_range %}
+                    {% if page_number == page_obj.number %}
+                        <li class="page-item active" aria-current="page">
+                            <span class="page-link">{{ page_number }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{% querystring page=page_number %}">{{ page_number }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="{% querystring page=page_obj.next_page_number %}">Далее</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">Далее</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
 {% endblock %}

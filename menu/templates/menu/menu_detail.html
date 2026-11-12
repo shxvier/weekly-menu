@@ -18,19 +18,19 @@
 
                 <p class="card-text">
                     <strong>Блюдо:</strong>
-                    <a href="{% url 'dishes:detail' entry.dish_id %}">
-                        {{ entry.dish_name }}
+                    <a href="{% url 'dishes:detail' entry.dish.pk %}">
+                        {{ entry.dish.name }}
                     </a>
-                    ({{ entry.calories }} ккал, {{ entry.dish_type }})
+                    ({{ entry.dish.calories }} ккал, {{ entry.dish.get_dish_type_display|lower }})
                 </p>
 
                 <p class="card-text">
-                    <strong>Дата:</strong> {{ entry.menu_date }}
+                    <strong>Дата:</strong> {{ entry.menu_date|date:"d.m.Y" }}
                 </p>
 
                 <p class="card-text">
-                    <strong>Пользователь:</strong> {{ entry.user_name }}
-                    (лимит {{ entry.daily_limit }} ккал в день)
+                    <strong>Пользователь:</strong> {{ entry.user.name }}
+                    (лимит {{ entry.user.daily_limit }} ккал в день)
                 </p>
 
                 <p class="card-text">

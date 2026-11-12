@@ -44,7 +44,7 @@
         <tbody>
             {% for row in calories_by_day %}
                 <tr {% if row.day_calories > row.daily_limit %}class="table-danger"{% endif %}>
-                    <td>{{ row.menu_date }}</td>
+                    <td>{{ row.menu_date|date:"d.m.Y" }}</td>
                     <td>{{ row.user_name }}</td>
                     <td>{{ row.dishes_count }}</td>
                     <td>{{ row.day_calories }}</td>
@@ -60,7 +60,7 @@
     <ul class="list-group mb-4">
         {% for row in over_limit %}
             <li class="list-group-item">
-                {{ row.user_name }}, {{ row.menu_date }}:
+                {{ row.user_name }}, {{ row.menu_date|date:"d.m.Y" }}:
                 {{ row.day_calories }} ккал при лимите {{ row.daily_limit }}
                 <span class="badge bg-danger">+{{ row.excess }}</span>
             </li>
