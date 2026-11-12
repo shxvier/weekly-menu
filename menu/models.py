@@ -4,6 +4,26 @@ from dishes.models import Dish
 from users.models import User
 
 
+class MenuEntryQuerySet(models.QuerySet):
+    """Повторно используемые условия выборки записей меню."""
+
+    def active(self):
+        """Только активные (не отменённые) записи."""
+        return self.filter(is_cancelled=False)
+
+    def cancelled(self):
+        """Только отменённые записи."""
+        return self.filter(is_cancelled=True)
+
+    def for_date(self, selected_date):
+        """Записи на указанную дату (объект datetime.date)."""
+        return self.filter(menu_date=selected_date)
+
+
+class MenuEntryManager(models.Manager.from_queryset(MenuEntryQuerySet)):
+    """Менеджер MenuEntry с методами MenuEntryQuerySet."""
+
+
 class MenuEntry(models.Model):
     """Запись меню: блюдо, запланированное пользователю на дату."""
 
@@ -31,6 +51,8 @@ class MenuEntry(models.Model):
         default=False,
         verbose_name="Запись отменена",
     )
+
+    objects = MenuEntryManager()
 
     class Meta:
         ordering = ["menu_date", "pk"]

@@ -34,8 +34,8 @@ def menu_list(request):
         sort = "date"
     error = None
 
-    # Только активные записи меню.
-    entries = MenuEntry.objects.filter(is_cancelled=False)
+    # Только активные записи меню (метод менеджера).
+    entries = MenuEntry.objects.active()
 
     if raw_date:
         try:
@@ -43,7 +43,7 @@ def menu_list(request):
         except ValueError:
             error = "Укажите корректную дату."
         else:
-            entries = entries.filter(menu_date=selected_date)
+            entries = entries.for_date(selected_date)
     # Фильтрация по внешним ключам.
     if dish_id.isdigit():
         entries = entries.filter(dish_id=int(dish_id))
@@ -132,7 +132,9 @@ def day_menu(request):
         # Несколько условий: пользователь, дата, только активные записи.
         day_entries = (
             MenuEntry.objects
-            .filter(user=user, menu_date=menu_date, is_cancelled=False)
+            .active()
+            .for_date(menu_date)
+            .filter(user=user)
             .select_related("dish")
             .order_by("dish__calories")
         )
@@ -160,7 +162,7 @@ def statistics(request):
     raw_threshold = request.GET.get("min_count", "2")
     threshold = int(raw_threshold) if raw_threshold.isdigit() else 2
 
-    active = MenuEntry.objects.filter(is_cancelled=False)
+    active = MenuEntry.objects.active()
     # Калорийность по дням: группировка по пользователю и дате.
     calories_by_day = (
         active

@@ -51,7 +51,7 @@ def dish_detail(request, dish_id):
     """Карточка блюда и число его появлений в активном меню."""
     dish = get_object_or_404(Dish, pk=dish_id)
     # Обратная связь Dish -> MenuEntry через related_name.
-    times_planned = dish.menu_entries.filter(is_cancelled=False).count()
+    times_planned = dish.menu_entries.active().count()
     context = {
         "dish": dish,
         "times_planned": times_planned,
