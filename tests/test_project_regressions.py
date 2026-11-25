@@ -105,6 +105,17 @@ def test_transliterated_slug_fits_model_field():
     assert dish.get_absolute_url() == f"/dishes/{dish.slug}/"
 
 
+def test_new_dish_can_be_saved_again_after_database_failure():
+    dish = Dish(name="Повторное сохранение", calories=-1)
+    with pytest.raises(IntegrityError):
+        dish.save()
+    assert dish.pk is None
+    assert not dish.slug
+    dish.calories = 100
+    dish.save()
+    assert dish.slug == f"povtornoe-sokhranenie-{dish.pk}"
+
+
 @pytest.mark.parametrize("admin_form", [False, True])
 def test_upload_requires_supported_format_and_matching_extension(
     request, client, admin_form,

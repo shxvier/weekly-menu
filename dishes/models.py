@@ -97,12 +97,20 @@ class Dish(models.Model):
             using = kwargs.get("using") or router.db_for_write(
                 type(self), instance=self,
             )
+            previous_slug = self.slug
+            previous_state = self._state.adding, self._state.db
             # Временный slug уникален и остаётся внутри транзакции.
-            with transaction.atomic(using=using):
-                self.slug = f"new-{uuid4().hex}"
-                super().save(*args, **kwargs)
-                self.slug = self.slug_for_pk()
-                super().save(using=using, update_fields=["slug"])
+            try:
+                with transaction.atomic(using=using):
+                    self.slug = f"new-{uuid4().hex}"
+                    super().save(*args, **kwargs)
+                    self.slug = self.slug_for_pk()
+                    super().save(using=using, update_fields=["slug"])
+            except Exception:
+                self.pk = None
+                self.slug = previous_slug
+                self._state.adding, self._state.db = previous_state
+                raise
 
     def slug_for_pk(self):
         base_slug = slugify(unidecode(self.name)) or "dish"
