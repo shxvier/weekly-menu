@@ -1,5 +1,7 @@
+from uuid import uuid4
+
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, router, transaction
 from django.db.models import Case, Value, When
 from django.urls import reverse
 from django.utils.text import slugify
@@ -86,19 +88,35 @@ class Dish(models.Model):
         «Греческий салат» -> grecheskii-salat-3. Уже заданный slug не
         меняется, чтобы адрес страницы оставался постоянным.
         """
-        if not self.slug:
-            base_slug = slugify(unidecode(self.name)) or "dish"
-            if self.pk:
-                self.slug = f"{base_slug}-{self.pk}"
-            else:
-                # У нового объекта ещё нет id: сначала сохраняем его.
-                # Временный slug нужен из-за ограничения unique.
-                self.slug = f"{base_slug}-new"
-                super().save(*args, **kwargs)
-                self.slug = f"{base_slug}-{self.pk}"
-                super().save(update_fields=["slug"])
-                return
-        super().save(*args, **kwargs)
+        if self.slug:
+            super().save(*args, **kwargs)
+        elif self.pk is not None:
+            self.slug = self.slug_for_pk()
+            super().save(*args, **kwargs)
+        else:
+            using = kwargs.get("using") or router.db_for_write(
+                type(self), instance=self,
+            )
+            previous_slug = self.slug
+            previous_state = self._state.adding, self._state.db
+            # Временный slug уникален и остаётся внутри транзакции.
+            try:
+                with transaction.atomic(using=using):
+                    self.slug = f"new-{uuid4().hex}"
+                    super().save(*args, **kwargs)
+                    self.slug = self.slug_for_pk()
+                    super().save(using=using, update_fields=["slug"])
+            except Exception:
+                self.pk = None
+                self.slug = previous_slug
+                self._state.adding, self._state.db = previous_state
+                raise
+
+    def slug_for_pk(self):
+        base_slug = slugify(unidecode(self.name)) or "dish"
+        suffix = f"-{self.pk}"
+        max_length = self._meta.get_field("slug").max_length - len(suffix)
+        return base_slug[:max_length].rstrip("-_") + suffix
 
     def get_absolute_url(self):
         """Адрес страницы блюда по именованному маршруту."""

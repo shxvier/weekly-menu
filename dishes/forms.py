@@ -1,8 +1,30 @@
 """Формы приложения «Блюда»."""
+from pathlib import Path
+
 from django import forms
 from django.core.exceptions import ValidationError
 
 from dishes.models import Dish
+
+
+class DishPhotoField(forms.ImageField):
+    formats = {
+        ".jpg": "JPEG",
+        ".jpeg": "JPEG",
+        ".png": "PNG",
+        ".webp": "WEBP",
+    }
+
+    def to_python(self, data):
+        photo = super().to_python(data)
+        if photo is not None:
+            expected_format = self.formats.get(Path(photo.name).suffix.lower())
+            if expected_format != photo.image.format:
+                raise ValidationError(
+                    "Загрузите фотографию в формате JPG, PNG или WebP "
+                    "с соответствующим расширением."
+                )
+        return photo
 
 
 class DishForm(forms.ModelForm):
@@ -15,6 +37,7 @@ class DishForm(forms.ModelForm):
     class Meta:
         model = Dish
         fields = ["name", "calories", "dish_type", "image"]
+        field_classes = {"image": DishPhotoField}
         widgets = {
             "name": forms.TextInput(attrs={
                 "class": "form-control",
@@ -29,7 +52,7 @@ class DishForm(forms.ModelForm):
             # настоящую проверку выполняет ImageField на сервере.
             "image": forms.ClearableFileInput(attrs={
                 "class": "form-control",
-                "accept": "image/*",
+                "accept": "image/jpeg,image/png,image/webp",
             }),
         }
 

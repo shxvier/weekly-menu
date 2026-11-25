@@ -14,6 +14,15 @@ WEEKDAY_NAMES = (
 DATE_FORMATS = ("%d.%m.%Y", "%Y-%m-%d")
 
 
+def parse_int_at_least(value, minimum):
+    """Разобрать целое число из строки, соблюдая нижнюю границу."""
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number >= minimum else None
+
+
 def get_user_greeting(name: str, goal: str) -> str:
     """Формирует приветствие пользователя."""
     if not name:

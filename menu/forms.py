@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from dishes.models import Dish
-from menu.models import MenuEntry
+from menu.models import TAKEN_ERROR, MenuEntry
 from users.models import User
 
 # Варианты сортировки списка меню. Ключи совпадают с ENTRY_SORT_FIELDS
@@ -141,4 +141,13 @@ class MenuEntryForm(forms.ModelForm):
                 f"Калорийность блюда ({dish.calories} ккал) больше "
                 f"дневного лимита пользователя ({user.daily_limit} ккал)."
             )
+        menu_date = cleaned_data.get("menu_date")
+        if (
+            dish and user and menu_date
+            and self.instance.status in MenuEntry.IN_MENU_STATUSES
+            and MenuEntry.objects.slot_taken(
+                dish.pk, user.pk, menu_date, exclude_pk=self.instance.pk,
+            )
+        ):
+            raise ValidationError(TAKEN_ERROR)
         return cleaned_data

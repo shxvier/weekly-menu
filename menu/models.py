@@ -3,6 +3,9 @@ from django.db import models
 from dishes.models import Dish
 from users.models import User
 
+TAKEN_ERROR = "Это блюдо уже есть в меню пользователя на выбранную дату."
+IN_MENU_STATUSES = ("active", "completed")
+
 
 class MenuEntryQuerySet(models.QuerySet):
     """Повторно используемые условия выборки записей меню."""
@@ -27,6 +30,19 @@ class MenuEntryQuerySet(models.QuerySet):
         """Записи на указанную дату (объект datetime.date)."""
         return self.filter(menu_date=selected_date)
 
+    def matching_slot(self, dish_id, user_id, menu_date):
+        return self.for_date(menu_date).filter(
+            dish_id=dish_id, user_id=user_id,
+        )
+
+    def slot_taken(self, dish_id, user_id, menu_date, exclude_pk=None):
+        return (
+            self.in_menu()
+            .matching_slot(dish_id, user_id, menu_date)
+            .exclude(pk=exclude_pk)
+            .exists()
+        )
+
 
 class MenuEntryManager(models.Manager.from_queryset(MenuEntryQuerySet)):
     """Менеджер MenuEntry с методами MenuEntryQuerySet."""
@@ -49,7 +65,7 @@ class MenuEntry(models.Model):
         COMPLETED = "completed", "Выполнено"
 
     # Статусы записей, входящих в меню.
-    IN_MENU_STATUSES = (Status.ACTIVE, Status.COMPLETED)
+    IN_MENU_STATUSES = IN_MENU_STATUSES
 
     # Блюдо записи. PROTECT запрещает удалить блюдо, пока оно
     # встречается в меню, – история меню сохраняется.
@@ -83,11 +99,28 @@ class MenuEntry(models.Model):
         ordering = ["menu_date", "pk"]
         verbose_name = "Запись меню"
         verbose_name_plural = "Записи меню"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dish", "user", "menu_date"],
+                condition=models.Q(status__in=IN_MENU_STATUSES),
+                name="menu_unique_live_dish_per_day",
+                violation_error_message=TAKEN_ERROR,
+            ),
+        ]
 
     def __str__(self):
         return f"{self.dish} — {self.menu_date} ({self.user})"
 
-    def cancel(self):
-        """Отменить запись и сохранить только изменённое поле."""
+    def cancel(self, *, only_active=False):
+        """Отменить запись, при необходимости проверив текущий статус в БД."""
+        if only_active:
+            updated = type(self).objects.active().filter(pk=self.pk).update(
+                status=self.Status.CANCELLED,
+            )
+            if not updated:
+                return False
+            self.status = self.Status.CANCELLED
+            return True
         self.status = self.Status.CANCELLED
         self.save(update_fields=["status"])
+        return True
