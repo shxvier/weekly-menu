@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from dishes.forms import DishForm
 from dishes.models import Dish
+from utils import parse_int_at_least
 
 # Разрешённые значения параметра sort -> поля модели.
 # Произвольный ввод пользователя в order_by() не передаётся.
@@ -14,21 +15,12 @@ DISH_SORT_FIELDS = {
 }
 
 
-def parse_positive_int(value):
-    """Вернуть положительное целое из строки запроса или None."""
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    return number if number > 0 else None
-
-
 def dish_list(request):
     """Список блюд: поиск по названию, лимит калорий, сортировка."""
     raw_limit = request.GET.get("max_calories", "").strip()
     query = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "name")
-    max_calories = parse_positive_int(raw_limit)
+    max_calories = parse_int_at_least(raw_limit, 1)
 
     dishes = Dish.objects.all()
     if query:

@@ -74,17 +74,19 @@
             {% endfor %}
         </ul>
 
-        <h3 class="h5">Можно добавить</h3>
+        <h3 class="h5">{% if can_plan %}Можно добавить{% else %}Свободные блюда{% endif %}</h3>
         {% for dish in free_dishes %}
             {% include "dishes/includes/dish_card.html" %}
-            <p class="mb-3">
-                <a class="btn btn-sm btn-outline-success"
-                   href="{% url 'menu:create' %}?dish={{ dish.pk }}&amp;user={{ selected_user.pk }}&amp;date={{ date_value }}">
-                    Добавить в меню
-                </a>
-            </p>
+            {% if can_plan %}
+                <p class="mb-3">
+                    <a class="btn btn-sm btn-outline-success"
+                       href="{% url 'menu:create' %}?dish={{ dish.pk }}&amp;user={{ selected_user.pk }}&amp;date={{ date_value }}">
+                        Добавить в меню
+                    </a>
+                </p>
+            {% endif %}
         {% empty %}
-            <p>Все блюда уже в меню на этот день.</p>
+            <p>Нет доступных блюд для этого пользователя и даты.</p>
         {% endfor %}
     {% endif %}
 {% endblock %}

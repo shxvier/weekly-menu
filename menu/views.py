@@ -1,7 +1,9 @@
 """Страницы меню: данные через Django ORM, ввод – через Django Forms."""
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Min, Q, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -9,9 +11,9 @@ from django.views.decorators.http import require_POST
 
 from dishes.models import Dish
 from menu.forms import MenuEntryForm, MenuFilterForm
-from menu.models import MenuEntry
+from menu.models import TAKEN_ERROR, MenuEntry
 from users.models import User
-from utils import parse_date
+from utils import parse_date, parse_int_at_least
 
 # Записей меню на одной странице списка.
 ENTRIES_PER_PAGE = 5
@@ -123,34 +125,38 @@ def creation_initial(params):
     """
     initial = {"menu_date": timezone.localdate()}
     for name in ("dish", "user"):
-        value = params.get(name, "")
-        if value.isdigit():
-            initial[name] = int(value)
+        value = parse_int_at_least(params.get(name), 1)
+        if value is not None:
+            initial[name] = value
     selected_date = parse_date(params.get("date", ""))
     if selected_date and selected_date >= initial["menu_date"]:
         initial["menu_date"] = selected_date
     return initial
 
 
-def is_dish_taken(cleaned_data, exclude_pk=None):
-    """Есть ли блюдо в меню пользователя на эту дату.
-
-    Учитываются записи «Запланировано» и «Выполнено» (in_menu());
-    отменённая запись блюдо не занимает. exclude_pk исключает из
-    проверки редактируемую запись, чтобы она не мешала самой себе.
-    """
-    entries = (
-        MenuEntry.objects
-        .in_menu()
-        .for_date(cleaned_data["menu_date"])
-        .filter(dish=cleaned_data["dish"], user=cleaned_data["user"])
-    )
-    if exclude_pk is not None:
-        entries = entries.exclude(pk=exclude_pk)
-    return entries.exists()
-
-
-TAKEN_ERROR = "Это блюдо уже есть в меню пользователя на выбранную дату."
+def save_menu_form(form):
+    """Обработать конфликт, возникший между валидацией и записью в БД."""
+    entry = form.save(commit=False)
+    slot = {
+        "dish_id": entry.dish_id,
+        "user_id": entry.user_id,
+        "menu_date": entry.menu_date,
+    }
+    try:
+        with transaction.atomic():
+            if entry.pk is None:
+                entry.save()
+            else:
+                # Изменение полей формы не может вернуть отменённую запись.
+                active_entry = MenuEntry.objects.active().filter(pk=entry.pk)
+                if not active_entry.update(**slot):
+                    raise Http404
+    except IntegrityError:
+        if not MenuEntry.objects.slot_taken(**slot, exclude_pk=entry.pk):
+            raise
+        form.add_error(None, TAKEN_ERROR)
+        return None
+    return entry
 
 
 def menu_create(request):
@@ -159,11 +165,8 @@ def menu_create(request):
         # Связанная форма: данные из запроса проходят валидацию.
         form = MenuEntryForm(request.POST)
         if form.is_valid():
-            if is_dish_taken(form.cleaned_data):
-                # Общая ошибка формы, не связанная с одним полем.
-                form.add_error(None, TAKEN_ERROR)
-            else:
-                entry = form.save()
+            entry = save_menu_form(form)
+            if entry is not None:
                 messages.success(request, "Запись добавлена в меню.")
                 return redirect("menu:detail", entry_id=entry.pk)
     else:
@@ -180,13 +183,9 @@ def menu_update(request, entry_id):
         # instance=entry: форма изменяет существующую запись,
         # а не создаёт новую.
         form = MenuEntryForm(request.POST, instance=entry)
-        if form.is_valid():
-            if is_dish_taken(form.cleaned_data, exclude_pk=entry.pk):
-                form.add_error(None, TAKEN_ERROR)
-            else:
-                form.save()
-                messages.success(request, "Изменения сохранены.")
-                return redirect("menu:detail", entry_id=entry.pk)
+        if form.is_valid() and save_menu_form(form) is not None:
+            messages.success(request, "Изменения сохранены.")
+            return redirect("menu:detail", entry_id=entry.pk)
     else:
         form = MenuEntryForm(instance=entry)
     context = {"form": form, "entry_id": entry.pk}
@@ -199,8 +198,11 @@ def menu_cancel(request, entry_id):
 
     Только POST-запрос с CSRF-токеном; GET вернёт 405.
     """
-    entry = get_object_or_404(MenuEntry.objects.active(), pk=entry_id)
-    entry.cancel()
+    entry = get_object_or_404(
+        MenuEntry.objects.active().select_related("dish"), pk=entry_id,
+    )
+    if not entry.cancel(only_active=True):
+        raise Http404
     messages.success(
         request, f"Запись №{entry.pk} «{entry.dish}» отменена.",
     )
@@ -231,8 +233,9 @@ def day_menu(request):
     raw_user = request.GET.get("user", "").strip()
     menu_date = parse_date(raw_date) if raw_date else None
     user = None
-    if raw_user.isdigit():
-        user = User.objects.filter(pk=int(raw_user)).first()
+    user_id = parse_int_at_least(raw_user, 1)
+    if user_id is not None:
+        user = User.objects.filter(pk=user_id).first()
 
     context = {
         "users": User.objects.order_by("name"),
@@ -262,13 +265,16 @@ def day_menu(request):
             or 0
         )
         # Блюда, которых ещё нет в меню на этот день.
-        free_dishes = Dish.objects.exclude(
-            pk__in=day_entries.values_list("dish_id", flat=True),
-        ).order_by("name")
+        free_dishes = (
+            Dish.objects.filter(calories__lte=user.daily_limit)
+            .exclude(pk__in=day_entries.values_list("dish_id", flat=True))
+            .order_by("name")
+        )
         context.update({
             "searched": True,
             "entries": day_entries,
             "free_dishes": free_dishes,
+            "can_plan": menu_date >= timezone.localdate(),
             "day_calories": day_calories,
             "left_calories": user.daily_limit - day_calories,
             "excess_calories": day_calories - user.daily_limit,
@@ -279,7 +285,9 @@ def day_menu(request):
 def statistics(request):
     """Статистика по меню и блюдам: агрегирование и группировка."""
     raw_threshold = request.GET.get("min_count", "2")
-    threshold = int(raw_threshold) if raw_threshold.isdigit() else 2
+    threshold = parse_int_at_least(raw_threshold, 0)
+    if threshold is None:
+        threshold = 2
 
     in_menu = MenuEntry.objects.in_menu()
     # Калорийность по дням: группировка по пользователю и дате.
@@ -287,6 +295,7 @@ def statistics(request):
         in_menu
         .values(
             "menu_date",
+            "user_id",
             user_name=F("user__name"),
             daily_limit=F("user__daily_limit"),
         )
@@ -329,7 +338,9 @@ def statistics(request):
             .values("dish_name", "times_planned")
             .order_by("-times_planned", "dish_name")
         ),
-        "calories_by_day": calories_by_day.order_by("menu_date", "user_name"),
+        "calories_by_day": calories_by_day.order_by(
+            "menu_date", "user_name", "user_id",
+        ),
         # Условие на агрегат -> HAVING: дни сверх лимита пользователя.
         "over_limit": (
             calories_by_day

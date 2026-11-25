@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.db.models import Count, Q
+from django.db.models import Count, ImageField, Q
 from django.utils.html import format_html
 
+from dishes.forms import DishPhotoField
 from dishes.models import Dish
 from menu.admin import MenuEntryInline
 from menu.models import MenuEntry
@@ -27,6 +28,7 @@ class DishAdmin(admin.ModelAdmin):
     ordering = ("name",)
     list_per_page = 20
     readonly_fields = ("id", "slug", "is_light", "image_preview")
+    formfield_overrides = {ImageField: {"form_class": DishPhotoField}}
     inlines = (MenuEntryInline,)
     # Ссылка «Смотреть на сайте» строится через get_absolute_url().
     view_on_site = True
